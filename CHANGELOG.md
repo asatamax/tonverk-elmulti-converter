@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-22
+
+### Fixed
+
+- Fixed out-of-bounds sample position validation for `trim-end` and `loop-end`
+  - Some SF2->SFZ converters output `end` values using exclusive convention (end=sample_count) instead of SFZ's inclusive specification (end=sample_count-1)
+  - `trim-end`: Now omitted when >= sample count (file uses full length anyway)
+  - `loop-end`: Now clamped to sample_count-1 when out of bounds
+- Fixed `get_sample_count()` to use wave module fallback when ffprobe doesn't return `nb_samples`
+
+### Added
+
+- `validate_sample_position()` helper function for bounds checking with clear warning messages
+
 ## [1.0.1] - 2025-12-22
 
 ### Fixed

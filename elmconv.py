@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 import argparse
 import glob
@@ -211,7 +211,11 @@ def get_sample_rate(filepath):
 
 
 def get_sample_count(filepath):
-    """Get total sample count of audio file using ffprobe."""
+    """Get total sample count of audio file.
+
+    Tries ffprobe first, falls back to wave module for WAV files.
+    """
+    # Try ffprobe first
     try:
         result = subprocess.run(
             [
@@ -233,6 +237,17 @@ def get_sample_count(filepath):
             return int(result.stdout.strip())
     except (FileNotFoundError, ValueError):
         pass
+
+    # Fallback to wave module for WAV files
+    if filepath.lower().endswith(".wav"):
+        try:
+            import wave
+
+            with wave.open(filepath, "rb") as w:
+                return w.getnframes()
+        except Exception:
+            pass
+
     return None
 
 
@@ -381,6 +396,36 @@ def embed_smpl_chunk(wav_path, loop_start, loop_end, midi_unity_note=60):
     except Exception as e:
         print(f"    Warning: Failed to embed smpl chunk: {e}")
         return False
+
+
+def validate_sample_position(value, sample_count, can_omit=False):
+    """Validate sample position against file bounds.
+
+    SFZ and elmulti use inclusive sample positions (0 to sample_count-1).
+    Some SF2->SFZ converters incorrectly output exclusive values (sample_count),
+    which would cause out-of-bounds errors on Tonverk.
+
+    Args:
+        value: Sample position value to validate
+        sample_count: Total number of samples in the WAV file
+        can_omit: If True, return 0 for out-of-bounds (meaning "omit this field")
+                  If False, clamp to max valid value (sample_count - 1)
+
+    Returns:
+        tuple: (validated_value, warning_message or None)
+    """
+    if value <= 0 or sample_count is None or sample_count <= 0:
+        return value, None
+
+    max_valid = sample_count - 1  # inclusive: last valid index
+
+    if value >= sample_count:
+        if can_omit:
+            return 0, f"out of bounds ({value} >= {sample_count}), omitting"
+        else:
+            return max_valid, f"clamped {value} -> {max_valid}"
+
+    return value, None
 
 
 def is_single_cycle(loop_length, threshold=512):
@@ -1514,12 +1559,28 @@ def write_elmulti(
                 convert_func = round if round_loop_points else int
                 trim_start = zd.get("trim_start", 0)
                 trim_end = zd.get("trim_end", 0)
+
+                # Get actual sample count for validation
+                wav_path = os.path.join(output_dir, zd["new_filename"])
+                actual_sample_count = get_sample_count(wav_path)
+
                 if trim_start > 0:
                     f.write(
                         f"trim-start = {convert_func(trim_start * resample_ratio)}\n"
                     )
                 if trim_end > 0:
-                    f.write(f"trim-end = {convert_func(trim_end * resample_ratio)}\n")
+                    # Validate trim-end: omit if out of bounds (file uses full length)
+                    scaled_trim_end = convert_func(trim_end * resample_ratio)
+                    validated_trim_end, trim_warning = validate_sample_position(
+                        scaled_trim_end, actual_sample_count, can_omit=True
+                    )
+                    if trim_warning:
+                        print(f"    trim-end {trim_warning}")
+                        conversion_stats.add_warning(
+                            zd["new_filename"], f"trim-end {trim_warning}"
+                        )
+                    if validated_trim_end > 0:
+                        f.write(f"trim-end = {validated_trim_end}\n")
 
                 if zd["loop"]:
                     f.write("loop-mode = 'Forward'\n")
@@ -1634,6 +1695,17 @@ def write_elmulti(
                                 conversion_stats.add_warning(
                                     zd["new_filename"], "loop optimization failed"
                                 )
+
+                    # Validate loop-end: clamp if out of bounds (required field, cannot omit)
+                    validated_loop_end, loop_end_warning = validate_sample_position(
+                        loop_end, actual_sample_count, can_omit=False
+                    )
+                    if loop_end_warning:
+                        print(f"    loop-end {loop_end_warning}")
+                        conversion_stats.add_warning(
+                            zd["new_filename"], f"loop-end {loop_end_warning}"
+                        )
+                        loop_end = validated_loop_end
 
                     f.write(f"loop-start = {loop_start}\n")
                     f.write(f"loop-end = {loop_end}\n")
