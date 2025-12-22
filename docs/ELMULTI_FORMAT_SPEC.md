@@ -702,8 +702,8 @@ sfz_crossfade = 24000 / 48000  # = 0.5 seconds
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2024-12-15 | 1.0 | Initial specification based on Tonverk Factory Library analysis |
-| 2024-12-15 | 1.1 | Added trim-start/trim-end, velocity behavior, SFZ comparison appendix |
+| 2025-12-15 | 1.0 | Initial specification based on Tonverk Factory Library analysis |
+| 2025-12-15 | 1.1 | Added trim-start/trim-end, velocity behavior, SFZ comparison appendix |
 | 2025-12-15 | 1.2 | Comprehensive analysis of 112 elmulti + 81 eldrum files: Added `keep-looping-on-release` field; Corrected note naming (uses `b` not `h`); Added negative octave support; Clarified elmulti vs eldrum differences; Added drum file naming convention; Made `loop-mode` optional; Added octave formula; Extended velocity reference table |
 | 2025-12-15 | 1.3 | Updated SFZ loop_mode mapping: `loop_continuous` now maps to `keep-looping-on-release = true`; Added bidirectional conversion code examples |
 | 2025-12-15 | 1.4 | Added SFZ vs elmulti octave notation comparison; Updated Appendix C with official Tonverk manual information; Added control opcodes, file name restrictions, WAV SMPL chunk support |
