@@ -5,3 +5,7 @@ output/
 *.wav
 *.aif
 *.aiff
+
+# Claude Code project files
+AGENTS.md
+CLAUDE.md
