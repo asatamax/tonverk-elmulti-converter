@@ -2,6 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
+[![Changelog](https://img.shields.io/badge/changelog-v1.0.1-orange.svg)](CHANGELOG.md)
 
 Convert EXS24 and SFZ instruments to Elektron Tonverk `.elmulti` format.
 
