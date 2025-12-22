@@ -28,6 +28,7 @@ sudo apt install ffmpeg
 
 # Windows
 # Download from https://ffmpeg.org/download.html
+# Note: Use the "full" build, not "essentials" (soxr resampler required)
 ```
 
 ## Usage

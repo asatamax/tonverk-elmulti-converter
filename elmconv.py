@@ -9,6 +9,8 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
+__version__ = "1.0.1"
+
 import argparse
 import glob
 import os
@@ -163,12 +165,23 @@ conversion_stats = ConversionStats()
 
 
 def check_ffmpeg():
-    """Check if ffmpeg is available."""
+    """Check if ffmpeg is available and has soxr resampler support.
+
+    Returns:
+        tuple: (ffmpeg_available, soxr_available)
+    """
     try:
         result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
-        return result.returncode == 0
+        if result.returncode != 0:
+            return (False, False)
+
+        # Check if soxr resampler is available (required for high-quality resampling)
+        # Look for --enable-libsoxr in the build configuration
+        soxr_available = "--enable-libsoxr" in result.stdout
+
+        return (True, soxr_available)
     except FileNotFoundError:
-        return False
+        return (False, False)
 
 
 def get_sample_rate(filepath):
@@ -989,20 +1002,22 @@ def parse_exs(exs_path):
 
         # 1. Try file_path from EXS (may be absolute or relative)
         if sample.file_path:
-            file_name = sample.file_name or sample.name
+            # Normalize Windows-style path separators
+            file_path = sample.file_path.replace("\\", "/")
+            file_name = (sample.file_name or sample.name).replace("\\", "/")
             # file_path may be directory or full path
-            if os.path.isabs(sample.file_path):
+            if os.path.isabs(file_path):
                 # Try as full file path first
-                if os.path.isfile(sample.file_path):
-                    found = sample.file_path
+                if os.path.isfile(file_path):
+                    found = file_path
                 # Try as directory + filename
-                elif os.path.isdir(sample.file_path):
-                    full_path = os.path.join(sample.file_path, file_name)
+                elif os.path.isdir(file_path):
+                    full_path = os.path.join(file_path, file_name)
                     if os.path.isfile(full_path):
                         found = full_path
             else:
                 # Try as relative path from EXS directory
-                rel_path = os.path.join(exs_dir, sample.file_path)
+                rel_path = os.path.join(exs_dir, file_path)
                 rel_path = os.path.normpath(rel_path)
                 if os.path.isfile(rel_path):
                     found = rel_path
@@ -1737,6 +1752,11 @@ def main():
         epilog="Outputs .elmulti file and WAV samples in a flat folder.",
     )
     parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    parser.add_argument(
         "input_paths",
         metavar="INPUT_FILE",
         nargs="+",
@@ -1801,13 +1821,30 @@ def main():
     args = parser.parse_args()
 
     # Check ffmpeg
-    if not check_ffmpeg():
+    ffmpeg_available, soxr_available = check_ffmpeg()
+    if not ffmpeg_available:
         print("Error: ffmpeg is not installed or not found in PATH.")
         print()
         print("Please install ffmpeg:")
         print("  macOS:   brew install ffmpeg")
         print("  Ubuntu:  sudo apt install ffmpeg")
         print("  Windows: Download from https://ffmpeg.org/download.html")
+        print("           Note: Use the 'full' build, not 'essentials'")
+        sys.exit(1)
+
+    if not soxr_available:
+        print("Error: ffmpeg does not have soxr resampler support.")
+        print()
+        print("The soxr library is required for high-quality resampling.")
+        print()
+        print("On Windows:")
+        print("  Download the 'full' build instead of 'essentials' from:")
+        print("  https://ffmpeg.org/download.html")
+        print()
+        print("On macOS/Linux:")
+        print("  Reinstall ffmpeg with soxr support:")
+        print("  macOS:  brew install ffmpeg")
+        print("  Ubuntu: sudo apt install ffmpeg")
         sys.exit(1)
 
     # Collect input files (handle both shell-expanded and glob patterns)
