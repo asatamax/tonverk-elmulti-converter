@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-12-23
+
+### Added
+
+- `--prefix` option to add prefix to instrument name and filenames
+  - Use case: Organize converted instruments by source (e.g., `--prefix "JV1010 - "`)
+  - Applied to: directory name, WAV filenames, .elmulti filename, and `name` field inside elmulti
+- `--normalize` / `-N` option for peak normalization of WAV files
+  - Default: 0dB when flag is used without value
+  - Supports custom dB level (e.g., `--normalize -1.0`)
+  - Normalization occurs before loop processing to ensure sample data consistency
+- Name length validation based on Tonverk Factory Library analysis
+  - Warning when name exceeds 24 characters (may be truncated on Tonverk display)
+  - Error when name exceeds 64 characters (filesystem safety limit)
+- `sanitize_filename()` helper function for cross-platform filename safety
+- `validate_name_length()` helper function for name length checking
+- `get_peak_level()` and `normalize_audio()` helper functions for normalization
+- Constants: `MAX_NAME_WARN`, `MAX_NAME_ERROR`, `INVALID_FILENAME_CHARS`
+
+### Changed
+
+- Updated docs/ELMULTI_FORMAT_SPEC.md with Name Length Limits section
+
 ## [1.0.2] - 2025-12-22
 
 ### Fixed

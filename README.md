@@ -2,9 +2,15 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.0.2-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.0.3-orange.svg)](CHANGELOG.md)
 
-Convert EXS24 and SFZ instruments to Elektron Tonverk `.elmulti` format.
+Convert your multi-sample instruments to Elektron Tonverk.
+
+- ✓ **Logic Pro** — Auto Sampler exports (EXS24)
+- ✓ **SFZ libraries** — Use your existing collection
+- ✓ **Full-featured** — Loops with crossfade, velocity layers, round-robin
+
+Output: `.elmulti` (Tonverk's native multi-sample format)
 
 ## Quick Start
 
@@ -44,6 +50,8 @@ python3 elmconv.py INPUT_FILE [INPUT_FILE ...] OUTPUT_DIR [options]
 |--------|-------------|
 | `-R, --resample-rate [RATE]` | Resample to specified rate (default: 48000 Hz) |
 | `-O, --optimize-loop` | Optimize loop points after resampling for seamless loops |
+| `--prefix PREFIX` | Add prefix to instrument name and filenames |
+| `-N, --normalize [DB]` | Peak normalize WAV files (default: 0dB) |
 | `--loop-search-range N` | Search range for loop optimization (default: 5 samples) |
 | `--single-cycle-threshold N` | Max loop length to treat as single-cycle (default: 512, 0 to disable) |
 | `--no-single-cycle` | Disable single-cycle waveform detection |
@@ -57,30 +65,20 @@ python3 elmconv.py INPUT_FILE [INPUT_FILE ...] OUTPUT_DIR [options]
 # Basic conversion (keeps original sample rate)
 python3 elmconv.py MyInstrument.exs output/
 
-# Resample to 48kHz (recommended for Tonverk)
-python3 elmconv.py MyInstrument.exs output/ --resample-rate
-
-# Resample to specific rate
-python3 elmconv.py MyInstrument.exs output/ --resample-rate 44100
-
-# Convert multiple SFZ files at once
-python3 elmconv.py /path/to/*.sfz output/
-
-# Resample with loop optimization (recommended)
+# Resample to 48kHz with loop optimization (recommended)
 python3 elmconv.py MyInstrument.sfz output/ -R -O
 
-# Increase search range for problematic loops
-python3 elmconv.py MyInstrument.sfz output/ -R -O --loop-search-range 10
+# Convert multiple files at once
+python3 elmconv.py /path/to/*.sfz output/ -R -O
 
-# Disable single-cycle detection (treat all loops as normal)
-python3 elmconv.py MyInstrument.sfz output/ -R -O --no-single-cycle
+# Add prefix for organization (e.g., by source)
+python3 elmconv.py MyInstrument.exs output/ -R -O --prefix "JV1010 - "
 
-# Adjust single-cycle threshold (default: 512 samples)
-python3 elmconv.py MyInstrument.sfz output/ -R -O --single-cycle-threshold 256
+# Normalize volume levels
+python3 elmconv.py MyInstrument.sfz output/ -R -O --normalize
 
-# Fine-tune loop point calculation (for problematic samples)
-python3 elmconv.py MyInstrument.sfz output/ -R --round-loop
-python3 elmconv.py MyInstrument.sfz output/ -R --use-accurate-ratio
+# Full options: resample, optimize, prefix, normalize
+python3 elmconv.py MyInstrument.exs output/ -R -O --prefix "JV1010 - " -N
 ```
 
 ### Output

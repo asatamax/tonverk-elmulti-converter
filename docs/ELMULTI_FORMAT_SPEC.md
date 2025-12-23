@@ -57,6 +57,26 @@ name = 'Instrument Name'
 
 **Note:** Both quote styles are valid: `name = 'My Instrument'` or `name = "My Instrument"`
 
+### Name Length Limits
+
+Based on analysis of the Tonverk Factory Library (339 files analyzed):
+
+| Metric | Value |
+|--------|-------|
+| Maximum observed | 21 characters |
+| Average | ~10.4 characters |
+| Longest name | `Spectral Synced Noise` |
+
+**Recommended limits for conversion tools:**
+
+| Length | Action |
+|--------|--------|
+| ≤ 24 characters | OK (within safe display range) |
+| 25-64 characters | Warning (may be truncated on Tonverk display) |
+| > 64 characters | Error (filesystem safety limit) |
+
+**Note:** When using `--prefix` option, the total length (`prefix + instrument_name`) should be considered.
+
 ## Key Zones
 
 Each `[[key-zones]]` block defines a keyboard region mapped to one or more samples.

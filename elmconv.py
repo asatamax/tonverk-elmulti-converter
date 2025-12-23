@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 import argparse
 import glob
@@ -26,6 +26,13 @@ from collections import defaultdict
 # =============================================================================
 
 NOTE_NAMES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+
+# Name length limits (based on Tonverk Factory Library analysis: max observed = 21 chars)
+MAX_NAME_WARN = 24  # Warning threshold: may be truncated on Tonverk display
+MAX_NAME_ERROR = 64  # Error threshold: filesystem safety limit
+
+# Characters invalid in filenames (cross-platform)
+INVALID_FILENAME_CHARS = r'/\:*?"<>|'
 
 
 # =============================================================================
@@ -79,6 +86,7 @@ class ConversionStats:
         # Sample counts
         self.total_samples = 0
         self.resampled_samples = 0
+        self.normalized_samples = 0
 
         # Loop counts
         self.loops_with_loop = 0
@@ -103,10 +111,17 @@ class ConversionStats:
         # Settings section
         if settings:
             print("\n--- Settings ---")
+            if settings.get("prefix"):
+                print(f'Prefix: "{settings["prefix"]}"')
             if settings.get("resample_rate"):
                 print(f"Resample rate: {settings['resample_rate']} Hz")
             else:
                 print("Resample rate: None (keep original)")
+            normalize_db = settings.get("normalize_db")
+            if normalize_db is not None:
+                print(f"Normalize level: {normalize_db} dB")
+            else:
+                print("Normalize: Disabled")
             print(f"Round loop points: {'Yes' if settings.get('round_loop') else 'No'}")
             if settings.get("optimize_loops"):
                 print(
@@ -127,8 +142,13 @@ class ConversionStats:
         print("\n--- Statistics ---")
         print(f"Files processed: {self.files_processed}")
         print(f"Total samples: {self.total_samples}", end="")
+        extras = []
         if self.resampled_samples > 0:
-            print(f" (resampled: {self.resampled_samples})")
+            extras.append(f"resampled: {self.resampled_samples}")
+        if self.normalized_samples > 0:
+            extras.append(f"normalized: {self.normalized_samples}")
+        if extras:
+            print(f" ({', '.join(extras)})")
         else:
             print()
 
@@ -585,6 +605,130 @@ def midi_to_note_name(midi_note):
     octave = (midi_note // 12) - 2  # Tonverk uses C0 = 24
     note = NOTE_NAMES[midi_note % 12]
     return f"{note}{octave}"
+
+
+def sanitize_filename(name):
+    """Sanitize string for use as filename.
+
+    Args:
+        name: String to sanitize
+
+    Returns:
+        str: Sanitized filename-safe string
+    """
+    # Replace invalid characters with underscore
+    result = name
+    for char in INVALID_FILENAME_CHARS:
+        result = result.replace(char, "_")
+    # Trim whitespace from ends
+    return result.strip()
+
+
+def validate_name_length(name, prefix=""):
+    """Validate instrument name length.
+
+    Based on Tonverk Factory Library analysis (max observed: 21 chars).
+
+    Args:
+        name: Instrument name
+        prefix: Optional prefix string
+
+    Returns:
+        tuple: (is_valid, warning_message or None)
+
+    Raises:
+        ValueError: If total length exceeds MAX_NAME_ERROR
+    """
+    total_len = len(prefix) + len(name)
+
+    if total_len > MAX_NAME_ERROR:
+        raise ValueError(
+            f"Name too long ({total_len} chars). "
+            f"Maximum allowed: {MAX_NAME_ERROR} chars"
+        )
+
+    if total_len > MAX_NAME_WARN:
+        return True, (
+            f"Name length ({total_len} chars) exceeds recommended "
+            f"limit of {MAX_NAME_WARN} chars. May be truncated on Tonverk display."
+        )
+
+    return True, None
+
+
+def get_peak_level(filepath):
+    """Get peak level of audio file using ffmpeg volumedetect.
+
+    Args:
+        filepath: Path to audio file
+
+    Returns:
+        float: Peak level in dB (negative value, e.g., -3.5)
+               None if detection fails
+    """
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-i", filepath, "-af", "volumedetect", "-f", "null", "-"],
+            capture_output=True,
+            text=True,
+        )
+        # Parse: max_volume: -3.5 dB
+        match = re.search(r"max_volume:\s*([-\d.]+)\s*dB", result.stderr)
+        if match:
+            return float(match.group(1))
+    except Exception:
+        pass
+    return None
+
+
+def normalize_audio(filepath, target_db=0.0):
+    """Normalize audio file to target peak level.
+
+    Args:
+        filepath: Path to WAV file (modified in-place)
+        target_db: Target peak level in dB (default: 0.0)
+
+    Returns:
+        tuple: (success, gain_applied_db)
+    """
+    peak = get_peak_level(filepath)
+    if peak is None:
+        return False, 0.0
+
+    gain = target_db - peak  # e.g., 0 - (-3.5) = +3.5 dB
+
+    if abs(gain) < 0.1:  # Already at target level
+        return True, 0.0
+
+    # Apply gain using ffmpeg
+    temp_path = filepath + ".tmp.wav"
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                filepath,
+                "-af",
+                f"volume={gain}dB",
+                "-acodec",
+                "pcm_s24le",
+                temp_path,
+            ],
+            capture_output=True,
+        )
+
+        if result.returncode == 0:
+            os.replace(temp_path, filepath)
+            return True, gain
+        else:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return False, 0.0
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return False, 0.0
 
 
 def find_sample_file(sample_name, search_dirs):
@@ -1421,6 +1565,8 @@ def write_elmulti(
     loop_search_range=5,
     single_cycle_threshold=512,
     embed_loop=True,
+    prefix="",
+    normalize_db=None,
 ):
     """Convert zone data to elmulti format with WAV files.
 
@@ -1435,10 +1581,16 @@ def write_elmulti(
         loop_search_range: Number of samples to search in each direction
         single_cycle_threshold: Max loop length to treat as single-cycle (0 to disable)
         embed_loop: Embed loop info (smpl chunk) into WAV files (default: True)
+        prefix: Prefix to add to instrument name and filenames (default: "")
+        normalize_db: Target peak level for normalization in dB (None = disabled)
 
     Returns:
         dict: Summary statistics
     """
+    # Apply prefix to instrument name
+    prefixed_name = f"{prefix}{instrument_name}" if prefix else instrument_name
+    # Sanitize for use in filenames
+    safe_name = sanitize_filename(prefixed_name)
     os.makedirs(output_dir, exist_ok=True)
     print(f"\nOutput: {output_dir}")
 
@@ -1466,7 +1618,7 @@ def write_elmulti(
         sample_counter[base_key] += 1
 
         new_filename = (
-            f"{instrument_name}-{vel_layer:03d}-{pitch:03d}-{note_name}{rr_suffix}.wav"
+            f"{safe_name}-{vel_layer:03d}-{pitch:03d}-{note_name}{rr_suffix}.wav"
         )
         dest_path = os.path.join(output_dir, new_filename)
 
@@ -1510,9 +1662,22 @@ def write_elmulti(
 
         zd["new_filename"] = new_filename
 
+    # Normalize samples if requested (must happen BEFORE loop processing)
+    if normalize_db is not None:
+        print(f"\nNormalizing samples to {normalize_db} dB...")
+        for zd in zone_data:
+            wav_path = os.path.join(output_dir, zd["new_filename"])
+            success, gain = normalize_audio(wav_path, normalize_db)
+            if success and abs(gain) > 0.1:
+                print(f"  Normalized: {zd['new_filename']} ({gain:+.1f} dB)")
+                conversion_stats.normalized_samples += 1
+            elif not success:
+                print(f"  Warning: Failed to normalize {zd['new_filename']}")
+                conversion_stats.add_warning(zd["new_filename"], "normalization failed")
+
     # Generate .elmulti file
-    elmulti_path = os.path.join(output_dir, f"{instrument_name}.elmulti")
-    print(f"\nGenerating: {instrument_name}.elmulti")
+    elmulti_path = os.path.join(output_dir, f"{safe_name}.elmulti")
+    print(f"\nGenerating: {safe_name}.elmulti")
 
     # Group zones by (pitch, minvel)
     zones_by_key = defaultdict(list)
@@ -1526,7 +1691,7 @@ def write_elmulti(
     with open(elmulti_path, "w", newline="\n") as f:
         f.write("# ELEKTRON MULTI-SAMPLE MAPPING FORMAT\n")
         f.write("version = 0\n")
-        f.write(f"name = '{instrument_name}'\n")
+        f.write(f"name = '{prefixed_name}'\n")
 
         for pitch, minvel in sorted_keys:
             zones_in_key = zones_by_key[(pitch, minvel)]
@@ -1759,6 +1924,8 @@ def convert_to_elmulti(
     loop_search_range=5,
     single_cycle_threshold=512,
     embed_loop=True,
+    prefix="",
+    normalize_db=None,
 ):
     """Convert input file to elmulti format.
 
@@ -1772,6 +1939,8 @@ def convert_to_elmulti(
         loop_search_range: Number of samples to search in each direction
         single_cycle_threshold: Max loop length to treat as single-cycle (0 to disable)
         embed_loop: Embed loop info (smpl chunk) into WAV files (default: True)
+        prefix: Prefix to add to instrument name and filenames (default: "")
+        normalize_db: Target peak level for normalization in dB (None = disabled)
     """
     ext = os.path.splitext(input_path)[1].lower()
 
@@ -1784,8 +1953,21 @@ def convert_to_elmulti(
         print("Supported formats: .exs, .sfz")
         sys.exit(1)
 
-    # Create subdirectory with instrument name
-    output_dir = os.path.join(output_dir, instrument_name)
+    # Validate name length (with prefix)
+    try:
+        _, name_warning = validate_name_length(instrument_name, prefix)
+        if name_warning:
+            print(f"Warning: {name_warning}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    # Apply prefix and sanitize for directory name
+    prefixed_name = f"{prefix}{instrument_name}" if prefix else instrument_name
+    safe_name = sanitize_filename(prefixed_name)
+
+    # Create subdirectory with instrument name (including prefix)
+    output_dir = os.path.join(output_dir, safe_name)
 
     stats = write_elmulti(
         zone_data,
@@ -1798,12 +1980,14 @@ def convert_to_elmulti(
         loop_search_range,
         single_cycle_threshold,
         embed_loop,
+        prefix,
+        normalize_db,
     )
 
     # Print summary
     print("\n=== Complete ===")
     print(f"Output: {output_dir}")
-    print(f"  - {instrument_name}.elmulti")
+    print(f"  - {safe_name}.elmulti")
     print(f"  - {stats['num_samples']} WAV files")
     print(f"  - {stats['num_key_zones']} key zones")
     print(f"  - {stats['num_vel_layers']} velocity layers total")
@@ -1888,6 +2072,23 @@ def main():
         "--no-embed-loop",
         action="store_true",
         help="Do not embed loop info (smpl chunk) into WAV files",
+    )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        metavar="PREFIX",
+        help="Add prefix to instrument name and filenames (e.g., 'JV1010 - ')",
+    )
+    parser.add_argument(
+        "--normalize",
+        "-N",
+        nargs="?",
+        const=0.0,
+        type=float,
+        default=None,
+        metavar="DB",
+        help="Peak normalize WAV files to specified dB level (default: 0dB if flag used)",
     )
 
     args = parser.parse_args()
@@ -1975,13 +2176,17 @@ def main():
             args.loop_search_range,
             sc_threshold,
             not args.no_embed_loop,
+            args.prefix,
+            args.normalize,
         )
         if len(input_files) > 1:
             print()
 
     # Print conversion summary
     settings = {
+        "prefix": args.prefix,
         "resample_rate": args.resample_rate,
+        "normalize_db": args.normalize,
         "round_loop": args.round_loop,
         "optimize_loops": args.optimize_loop,
         "loop_search_range": args.loop_search_range,
