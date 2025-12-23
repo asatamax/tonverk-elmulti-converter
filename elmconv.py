@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 
 import argparse
 import glob
@@ -2027,11 +2027,14 @@ def main():
         "--resample-rate",
         "-R",
         type=int,
-        nargs="?",
-        const=48000,
-        default=None,
+        default=48000,
         metavar="RATE",
-        help="Resample to specified rate in Hz (default: 48000 if flag used)",
+        help="Resample to specified rate in Hz (default: 48000)",
+    )
+    parser.add_argument(
+        "--no-resample",
+        action="store_true",
+        help="Keep original sample rate (disable resampling to 48kHz)",
     )
     parser.add_argument(
         "--round-loop",
@@ -2155,6 +2158,9 @@ def main():
     # Determine single-cycle threshold (0 if disabled)
     sc_threshold = 0 if args.no_single_cycle else args.single_cycle_threshold
 
+    # Determine resample rate (None if disabled)
+    resample_rate = None if args.no_resample else args.resample_rate
+
     # Reset stats before conversion
     conversion_stats.reset()
 
@@ -2169,7 +2175,7 @@ def main():
         convert_to_elmulti(
             input_file,
             args.output_dir,
-            args.resample_rate,
+            resample_rate,
             args.round_loop,
             args.use_accurate_ratio,
             args.optimize_loop,
@@ -2185,7 +2191,7 @@ def main():
     # Print conversion summary
     settings = {
         "prefix": args.prefix,
-        "resample_rate": args.resample_rate,
+        "resample_rate": resample_rate,
         "normalize_db": args.normalize,
         "round_loop": args.round_loop,
         "optimize_loops": args.optimize_loop,

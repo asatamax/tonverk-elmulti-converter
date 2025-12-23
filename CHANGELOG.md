@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2025-12-23
+
+### Changed
+
+- **Resampling to 48kHz is now enabled by default**
+  - Tonverk operates at 48kHz/24bit, so converting to 48kHz upfront ensures optimal compatibility
+  - Previously required `-R` flag; now automatic
+- Added `--no-resample` option to keep original sample rate when needed
+- Simplified CLI: removed `nargs="?"` from `--resample-rate`, now takes direct value
+
+### Migration
+
+If you were running without `-R` and want to preserve that behavior:
+```bash
+# Old (v1.0.3): no resampling by default
+elmconv input.exs output/
+
+# New (v1.0.4): use --no-resample to disable
+elmconv --no-resample input.exs output/
+```
+
 ## [1.0.3] - 2025-12-23
 
 ### Added

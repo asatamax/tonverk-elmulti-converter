@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.0.3-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.0.4-orange.svg)](CHANGELOG.md)
 
 Convert your multi-sample instruments to Elektron Tonverk.
 
@@ -15,8 +15,8 @@ Output: `.elmulti` (Tonverk's native multi-sample format)
 ## Quick Start
 
 ```bash
-# Most common usage: convert with resampling and loop optimization
-python3 elmconv.py MyInstrument.exs output/ -R -O
+# Convert an instrument (automatically resamples to 48kHz for Tonverk)
+python3 elmconv.py MyInstrument.exs output/
 ```
 
 ## Requirements
@@ -48,37 +48,44 @@ python3 elmconv.py INPUT_FILE [INPUT_FILE ...] OUTPUT_DIR [options]
 
 | Option | Description |
 |--------|-------------|
-| `-R, --resample-rate [RATE]` | Resample to specified rate (default: 48000 Hz) |
-| `-O, --optimize-loop` | Optimize loop points after resampling for seamless loops |
-| `--prefix PREFIX` | Add prefix to instrument name and filenames |
 | `-N, --normalize [DB]` | Peak normalize WAV files (default: 0dB) |
+| `-O, --optimize-loop` | Optimize loop points after resampling for seamless loops |
 | `--loop-search-range N` | Search range for loop optimization (default: 5 samples) |
 | `--single-cycle-threshold N` | Max loop length to treat as single-cycle (default: 512, 0 to disable) |
 | `--no-single-cycle` | Disable single-cycle waveform detection |
 | `--no-embed-loop` | Do not embed loop info (smpl chunk) into WAV files |
 | `--round-loop` | Use round() instead of int() for loop point calculation |
+| `-R, --resample-rate RATE` | Resample to specified rate (default: 48000 Hz) |
+| `--no-resample` | Keep original sample rate (disable 48kHz resampling) |
 | `--use-accurate-ratio` | Calculate resample ratio from actual file length |
+| `--prefix PREFIX` | Add prefix to instrument name and filenames |
 
 ### Examples
 
 ```bash
-# Basic conversion (keeps original sample rate)
+# Basic conversion (resamples to 48kHz by default)
 python3 elmconv.py MyInstrument.exs output/
 
-# Resample to 48kHz with loop optimization (recommended)
-python3 elmconv.py MyInstrument.sfz output/ -R -O
+# With loop optimization (recommended for looped samples)
+python3 elmconv.py MyInstrument.sfz output/ -O
 
 # Convert multiple files at once
-python3 elmconv.py /path/to/*.sfz output/ -R -O
+python3 elmconv.py /path/to/*.sfz output/ -O
 
 # Add prefix for organization (e.g., by source)
-python3 elmconv.py MyInstrument.exs output/ -R -O --prefix "JV1010 - "
+python3 elmconv.py MyInstrument.exs output/ -O --prefix "JV1010 - "
 
 # Normalize volume levels
-python3 elmconv.py MyInstrument.sfz output/ -R -O --normalize
+python3 elmconv.py MyInstrument.sfz output/ -O --normalize
 
-# Full options: resample, optimize, prefix, normalize
-python3 elmconv.py MyInstrument.exs output/ -R -O --prefix "JV1010 - " -N
+# Full options: loop optimization, prefix, normalize
+python3 elmconv.py MyInstrument.exs output/ -O --prefix "JV1010 - " -N
+
+# Keep original sample rate (disable resampling)
+python3 elmconv.py MyInstrument.exs output/ --no-resample
+
+# Custom sample rate
+python3 elmconv.py MyInstrument.exs output/ -R 44100
 ```
 
 ### Output
