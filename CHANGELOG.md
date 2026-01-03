@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-01-04
+
+### Added
+
+- **GUI**: Remember last directory in file pickers during session
+- **GUI**: Show elmconv version in startup log
+
+### Fixed
+
+- **EXS**: Improved sample search for relocated libraries
+  - Add ancestor directory search using `file_path` hints from EXS metadata
+  - Supports common library layouts where samples are in parallel folders (e.g., `Logic EXS/` vs `WAV/`)
+  - Add PermissionError/OSError handling in sample search
+  - Cache `os.listdir()` results to avoid redundant calls
+- **SFZ**: Enhanced error output with original opcode, default_path, and resolved path
+
 ## [1.1.0] - 2026-01-03
 
 ### Added

@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 import argparse
 import glob
