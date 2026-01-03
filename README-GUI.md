@@ -8,9 +8,9 @@ Download the latest release for your platform:
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | [elmconv-gui-mac-arm64.zip](https://github.com/asatamax/tonverk-elmulti-converter/releases/latest) |
-| macOS (Intel) | [elmconv-gui-mac-x64.zip](https://github.com/asatamax/tonverk-elmulti-converter/releases/latest) |
-| Windows | [elmconv-gui-windows.zip](https://github.com/asatamax/tonverk-elmulti-converter/releases/latest) |
+| macOS (Apple Silicon) | [elmconv-gui-mac-arm64.zip](https://github.com/asatamax/tonverk-elmulti-converter/releases/latest/download/elmconv-gui-mac-arm64.zip) |
+| macOS (Intel) | [elmconv-gui-mac-x64.zip](https://github.com/asatamax/tonverk-elmulti-converter/releases/latest/download/elmconv-gui-mac-x64.zip) |
+| Windows | [elmconv-gui-windows.zip](https://github.com/asatamax/tonverk-elmulti-converter/releases/latest/download/elmconv-gui-windows.zip) |
 
 ## Requirements
 

@@ -14,6 +14,8 @@ Convert your multi-sample instruments to Elektron Tonverk.
 
 Output: `.elmulti` (Tonverk's native multi-sample format)
 
+**[GUI version available](README-GUI.md)** - No command line required!
+
 ## Quick Start
 
 ```bash
