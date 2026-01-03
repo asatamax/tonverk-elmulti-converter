@@ -920,14 +920,20 @@ def find_sample_file(sample_name, search_dirs):
         if not os.path.isdir(search_dir):
             continue
 
-        # Exact match
+        # Exact match (no listdir needed)
         exact_path = os.path.join(search_dir, sample_name)
         if os.path.isfile(exact_path):
             return exact_path
 
+        # Try to list directory (may fail due to permissions)
+        try:
+            dir_contents = os.listdir(search_dir)
+        except (PermissionError, OSError):
+            continue
+
         # Case-insensitive match
         sample_lower = sample_name.lower()
-        for filename in os.listdir(search_dir):
+        for filename in dir_contents:
             if filename.lower() == sample_lower:
                 return os.path.join(search_dir, filename)
 
@@ -936,7 +942,7 @@ def find_sample_file(sample_name, search_dirs):
         sample_match = note_pattern.search(sample_name)
         if sample_match:
             sample_note = sample_match.group(1).upper()
-            for filename in os.listdir(search_dir):
+            for filename in dir_contents:
                 file_match = note_pattern.search(filename)
                 if file_match and file_match.group(1).upper() == sample_note:
                     return os.path.join(search_dir, filename)
@@ -1406,6 +1412,32 @@ def parse_exs(exs_path):
                 os.path.join(exs_dir, "..", exs_basename),
                 os.path.join(exs_dir, "..", "Samples", exs_basename),
             ]
+
+            # 3. Extract relative path hints from file_path and search ancestors
+            # Many sample libraries store samples in parallel directories like:
+            #   LibraryRoot/Logic EXS/... (EXS files)
+            #   LibraryRoot/WAV/...       (sample files)
+            if sample.file_path:
+                fp = sample.file_path.replace("\\", "/")
+                path_parts = [p for p in fp.split("/") if p]
+
+                # Try last 1-4 directory components as relative path
+                for depth in range(1, min(5, len(path_parts))):
+                    rel_subpath = os.path.join(*path_parts[-depth:])
+
+                    # Search from EXS directory upward (up to 6 levels)
+                    current_dir = exs_dir
+                    for _ in range(6):
+                        candidate = os.path.normpath(
+                            os.path.join(current_dir, rel_subpath)
+                        )
+                        if os.path.isdir(candidate) and candidate not in search_dirs:
+                            search_dirs.append(candidate)
+                        parent = os.path.dirname(current_dir)
+                        if parent == current_dir:
+                            break
+                        current_dir = parent
+
             file_name = sample.file_name or sample.name
             found = find_sample_file(file_name, search_dirs)
 
@@ -1565,12 +1597,12 @@ def parse_sfz(sfz_path):
     missing = []
 
     for region in regions:
-        sample_rel = region.get("sample")
-        if not sample_rel:
+        sample_opcode = region.get("sample")
+        if not sample_opcode:
             continue
 
         # Normalize Windows-style path separators
-        sample_rel = sample_rel.replace("\\", "/")
+        sample_rel = sample_opcode.replace("\\", "/")
 
         # Resolve sample path
         if default_path:
@@ -1583,6 +1615,10 @@ def parse_sfz(sfz_path):
         if not os.path.isfile(sample_path):
             missing.append(sample_rel)
             print(f"  [NG] {sample_rel}")
+            print(f"       (sample opcode: {sample_opcode})")
+            if default_path:
+                print(f"       (default_path: {default_path})")
+            print(f"       (resolved to: {sample_path})")
             continue
 
         print(f"  [OK] {sample_rel}")
