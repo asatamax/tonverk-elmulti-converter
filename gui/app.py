@@ -2,6 +2,8 @@
 
 import flet as ft
 
+from elmconv import __version__ as elmconv_version
+
 from .components import InputSelector, LogView, OptionsPanel, OutputPicker
 from .converter import ConverterBridge
 from .strings import Strings
@@ -34,7 +36,9 @@ class ElmconvApp:
         # Initial state
         self._check_ffmpeg()
         self.log_view.add(Strings.READY_MESSAGE, "info")
-        self.log_view.add(f"Flet version: {ft.version.__version__}", "info")
+        self.log_view.add(
+            f"elmconv v{elmconv_version} (Flet {ft.version.__version__})", "info"
+        )
 
     def _setup_page(self):
         """Configure page properties."""
