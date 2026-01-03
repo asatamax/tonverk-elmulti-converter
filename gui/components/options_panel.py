@@ -12,7 +12,7 @@ class ConversionOptions:
     """Conversion options data class."""
 
     resample: bool = True
-    optimize: bool = True
+    optimize: bool = False
     normalize: bool = False
     prefix: str = ""
 
@@ -29,7 +29,7 @@ class OptionsPanel:
         )
         self.optimize_cb = ft.Checkbox(
             label=Strings.OPTIMIZE_LOOPS,
-            value=True,
+            value=False,
         )
         self.normalize_cb = ft.Checkbox(
             label=Strings.NORMALIZE,
