@@ -31,6 +31,9 @@ class InputSelector:
         self.on_files_selected = on_files_selected
         self.log = log_callback
 
+        # Remember last directory for better UX
+        self._last_directory: str | None = None
+
         # Buttons (initially disabled)
         self.select_files_btn = ft.Button(
             Strings.SELECT_FILES,
@@ -92,18 +95,24 @@ class InputSelector:
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["exs", "sfz"],
             allow_multiple=True,
+            initial_directory=self._last_directory,
         )
         if results:
             paths = [f.path for f in results]
+            # Remember directory for next time
+            self._last_directory = str(Path(paths[0]).parent)
             await self.on_files_selected(paths)
 
     async def _on_select_folder(self, e):
         """Handle folder selection."""
         result = await self.file_picker.get_directory_path(
-            dialog_title=Strings.SELECT_INPUT_FOLDER_TITLE
+            dialog_title=Strings.SELECT_INPUT_FOLDER_TITLE,
+            initial_directory=self._last_directory,
         )
         if result:
             folder = Path(result)
+            # Remember directory for next time
+            self._last_directory = str(folder)
             files = list(folder.glob("*.exs")) + list(folder.glob("*.sfz"))
 
             if files:

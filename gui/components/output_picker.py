@@ -80,8 +80,11 @@ class OutputPicker:
 
     async def _on_browse(self, e):
         """Handle browse button click."""
+        # Start from previously selected path if available
+        initial_dir = self.selected_path if self.selected_path else None
         result = await self.file_picker.get_directory_path(
-            dialog_title=Strings.SELECT_OUTPUT_TITLE
+            dialog_title=Strings.SELECT_OUTPUT_TITLE,
+            initial_directory=initial_dir,
         )
         if result:
             self.path_field.value = result
