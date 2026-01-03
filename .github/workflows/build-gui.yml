@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv venv
-          uv pip install -r requirements-gui.txt
+          uv pip install -r requirements-gui.txt pyinstaller
 
       - name: Build with flet pack (macOS)
         if: runner.os == 'macOS'
