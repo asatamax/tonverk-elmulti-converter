@@ -79,6 +79,25 @@ MAX_NAME_ERROR = 64  # Error threshold: filesystem safety limit
 # Characters invalid in filenames (cross-platform)
 INVALID_FILENAME_CHARS = r'/\:*?"<>|'
 
+# Common ffmpeg installation paths for packaged apps
+# (Packaged .app/.exe don't inherit shell PATH)
+FFMPEG_SEARCH_PATHS = {
+    "darwin": [  # macOS
+        "/opt/homebrew/bin",  # Apple Silicon Homebrew
+        "/usr/local/bin",  # Intel Homebrew / manual install
+        "/usr/bin",  # System (unlikely but possible)
+    ],
+    "win32": [  # Windows
+        r"C:\Program Files\ffmpeg\bin",
+        r"C:\Program Files (x86)\ffmpeg\bin",
+        r"C:\ffmpeg\bin",
+        r"C:\tools\ffmpeg\bin",  # Chocolatey
+    ],
+}
+
+# Cached ffmpeg path (None = not searched, "" = not found, str = found path)
+_ffmpeg_path: str | None = None
+
 
 # =============================================================================
 # Loop Point Convention (SFZ/elmulti)
@@ -225,6 +244,79 @@ conversion_stats = ConversionStats()
 
 
 # =============================================================================
+# FFmpeg Path Resolution
+# =============================================================================
+
+
+def find_ffmpeg() -> str:
+    """Find ffmpeg executable path.
+
+    Searches common installation paths for packaged apps that don't
+    inherit shell PATH. Caches the result for performance.
+
+    Returns:
+        str: Path to ffmpeg directory (e.g., "/opt/homebrew/bin")
+             or empty string if not found.
+    """
+    global _ffmpeg_path
+
+    # Return cached result
+    if _ffmpeg_path is not None:
+        return _ffmpeg_path
+
+    # First, check if ffmpeg is already in PATH
+    import shutil
+
+    if shutil.which("ffmpeg"):
+        _ffmpeg_path = ""  # Empty means use default (in PATH)
+        return _ffmpeg_path
+
+    # Search common installation paths
+    search_paths = FFMPEG_SEARCH_PATHS.get(sys.platform, [])
+    for path in search_paths:
+        if sys.platform == "win32":
+            ffmpeg_exe = os.path.join(path, "ffmpeg.exe")
+        else:
+            ffmpeg_exe = os.path.join(path, "ffmpeg")
+
+        if os.path.isfile(ffmpeg_exe) and os.access(ffmpeg_exe, os.X_OK):
+            _ffmpeg_path = path
+            return _ffmpeg_path
+
+    # Not found
+    _ffmpeg_path = ""
+    return _ffmpeg_path
+
+
+def get_ffmpeg_cmd() -> str:
+    """Get the ffmpeg command path.
+
+    Returns:
+        str: Full path to ffmpeg, or just "ffmpeg" if in PATH.
+    """
+    path = find_ffmpeg()
+    if path:
+        if sys.platform == "win32":
+            return os.path.join(path, "ffmpeg.exe")
+        return os.path.join(path, "ffmpeg")
+    return "ffmpeg"
+
+
+def get_ffprobe_cmd() -> str:
+    """Get the ffprobe command path.
+
+    Returns:
+        str: Full path to ffprobe, or just "ffprobe" if in PATH.
+    """
+    path = find_ffmpeg()
+    if path:
+        if sys.platform == "win32":
+            return os.path.join(path, "ffprobe.exe")
+        return os.path.join(path, "ffprobe")
+    return "ffprobe"
+
+
+# =============================================================================
 # Utility Functions
 # =============================================================================
 
@@ -277,7 +369,10 @@ def check_ffmpeg():
         tuple: (ffmpeg_available, soxr_available)
     """
     try:
-        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+        ffmpeg_cmd = get_ffmpeg_cmd()
+        result = subprocess.run(
+            [ffmpeg_cmd, "-version"], capture_output=True, text=True
+        )
         if result.returncode != 0:
             return (False, False)
 
@@ -293,9 +388,10 @@ def check_ffmpeg():
 def get_sample_rate(filepath):
     """Get sample rate of audio file using ffprobe."""
     try:
+        ffprobe_cmd = get_ffprobe_cmd()
         result = subprocess.run(
             [
-                "ffprobe",
+                ffprobe_cmd,
                 "-v",
                 "error",
                 "-select_streams",
@@ -323,9 +419,10 @@ def get_sample_count(filepath):
     """
     # Try ffprobe first
     try:
+        ffprobe_cmd = get_ffprobe_cmd()
         result = subprocess.run(
             [
-                "ffprobe",
+                ffprobe_cmd,
                 "-v",
                 "error",
                 "-select_streams",
@@ -753,8 +850,9 @@ def get_peak_level(filepath):
                None if detection fails
     """
     try:
+        ffmpeg_cmd = get_ffmpeg_cmd()
         result = subprocess.run(
-            ["ffmpeg", "-i", filepath, "-af", "volumedetect", "-f", "null", "-"],
+            [ffmpeg_cmd, "-i", filepath, "-af", "volumedetect", "-f", "null", "-"],
             capture_output=True,
             text=True,
         )
@@ -789,9 +887,10 @@ def normalize_audio(filepath, target_db=0.0):
     # Apply gain using ffmpeg
     temp_path = filepath + ".tmp.wav"
     try:
+        ffmpeg_cmd = get_ffmpeg_cmd()
         result = subprocess.run(
             [
-                "ffmpeg",
+                ffmpeg_cmd,
                 "-y",
                 "-i",
                 filepath,
@@ -862,7 +961,8 @@ def convert_to_wav(source_path, dest_path, target_rate=None):
     if original_rate is None:
         original_rate = 44100  # Fallback
 
-    cmd = ["ffmpeg", "-y", "-i", source_path, "-acodec", "pcm_s24le"]
+    ffmpeg_cmd = get_ffmpeg_cmd()
+    cmd = [ffmpeg_cmd, "-y", "-i", source_path, "-acodec", "pcm_s24le"]
 
     if target_rate and target_rate != original_rate:
         cmd.extend(["-ar", str(target_rate), "-af", "aresample=resampler=soxr"])
