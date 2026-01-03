@@ -1,0 +1,90 @@
+name: Build GUI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            artifact-name: elmconv-gui-mac-arm64
+            app-name: "Tonverk Elmulti Converter"
+          - os: macos-13
+            artifact-name: elmconv-gui-mac-x64
+            app-name: "Tonverk Elmulti Converter"
+          - os: windows-latest
+            artifact-name: elmconv-gui-windows
+            app-name: "Tonverk Elmulti Converter"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install -r requirements-gui.txt
+
+      - name: Build with flet pack (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          source .venv/bin/activate
+          flet pack elmconv_gui.py --name "${{ matrix.app-name }}"
+
+      - name: Build with flet pack (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .venv\Scripts\activate
+          flet pack elmconv_gui.py --name "${{ matrix.app-name }}"
+
+      - name: Create archive (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r "${{ matrix.artifact-name }}.zip" "${{ matrix.app-name }}.app"
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd dist
+          Compress-Archive -Path "${{ matrix.app-name }}.exe" -DestinationPath "${{ matrix.artifact-name }}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: dist/${{ matrix.artifact-name }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.zip
+          generate_release_notes: true

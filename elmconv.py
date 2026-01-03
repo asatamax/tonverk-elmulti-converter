@@ -19,6 +19,51 @@ import struct
 import subprocess
 import sys
 from collections import defaultdict
+from typing import Protocol
+
+
+# =============================================================================
+# Exception Classes
+# =============================================================================
+
+
+class ConversionError(Exception):
+    """Raised when conversion fails (missing samples, ffmpeg failure, etc.)."""
+
+    pass
+
+
+class ValidationError(Exception):
+    """Raised when input validation fails (invalid format, name too long, etc.)."""
+
+    pass
+
+
+class FFmpegNotFoundError(ConversionError):
+    """Raised when ffmpeg is not available or missing soxr support."""
+
+    pass
+
+
+# =============================================================================
+# Logging Abstraction
+# =============================================================================
+
+
+class LogCallback(Protocol):
+    """Protocol for logging callbacks."""
+
+    def __call__(self, message: str, level: str = "info") -> None: ...
+
+
+def default_logger(message: str, level: str = "info") -> None:
+    """Default CLI logger using print()."""
+    if level == "error":
+        print(message, file=sys.stderr)
+    elif level == "warning":
+        print(f"Warning: {message}")
+    else:
+        print(message)
 
 
 # =============================================================================
@@ -182,6 +227,47 @@ conversion_stats = ConversionStats()
 # =============================================================================
 # Utility Functions
 # =============================================================================
+
+
+def check_ffmpeg_for_gui() -> tuple[bool, bool, str]:
+    """Check ffmpeg availability with detailed error message for GUI.
+
+    Returns:
+        tuple: (ffmpeg_available, soxr_available, error_message)
+    """
+    ffmpeg_available, soxr_available = check_ffmpeg()
+
+    if not ffmpeg_available:
+        return (
+            False,
+            False,
+            "ffmpeg is not installed.\n\n"
+            "Please install ffmpeg:\n\n"
+            "macOS:\n"
+            "  brew install ffmpeg\n\n"
+            "Windows:\n"
+            "  1. Download from https://ffmpeg.org/download.html\n"
+            "     (Choose 'Windows builds' -> 'full' build)\n"
+            "  2. Extract and add bin/ folder to PATH\n\n"
+            "Linux:\n"
+            "  sudo apt install ffmpeg  (Ubuntu/Debian)\n"
+            "  sudo dnf install ffmpeg  (Fedora)",
+        )
+    if not soxr_available:
+        return (
+            True,
+            False,
+            "ffmpeg is missing soxr resampler support.\n\n"
+            "The 'soxr' library is required for high-quality resampling.\n\n"
+            "macOS:\n"
+            "  brew reinstall ffmpeg\n\n"
+            "Windows:\n"
+            "  Download the 'full' build (not 'essentials') from:\n"
+            "  https://ffmpeg.org/download.html\n\n"
+            "Linux:\n"
+            "  sudo apt install ffmpeg  (should include soxr)",
+        )
+    return True, True, ""
 
 
 def check_ffmpeg():
@@ -790,8 +876,7 @@ def convert_to_wav(source_path, dest_path, target_rate=None):
         result = subprocess.run(cmd, capture_output=True, text=True)
         return (result.returncode == 0, original_rate, output_rate)
     except FileNotFoundError:
-        print("Error: ffmpeg not found. Please install ffmpeg.")
-        sys.exit(1)
+        raise FFmpegNotFoundError("ffmpeg not found. Please install ffmpeg.")
 
 
 # =============================================================================
@@ -1236,8 +1321,10 @@ def parse_exs(exs_path):
                 print(f"       (file_path: {sample.file_path})")
 
     if missing:
-        print(f"\nError: {len(missing)} sample(s) not found")
-        sys.exit(1)
+        missing_list = ", ".join(missing[:5])
+        if len(missing) > 5:
+            missing_list += f", ... ({len(missing) - 5} more)"
+        raise ConversionError(f"{len(missing)} sample(s) not found: {missing_list}")
 
     # Analyze groups for round-robin
     print(f"\nAnalyzing {len(exs.groups)} groups...")
@@ -1469,8 +1556,10 @@ def parse_sfz(sfz_path):
         )
 
     if missing:
-        print(f"\nError: {len(missing)} sample(s) not found")
-        sys.exit(1)
+        missing_list = ", ".join(missing[:5])
+        if len(missing) > 5:
+            missing_list += f", ... ({len(missing) - 5} more)"
+        raise ConversionError(f"{len(missing)} sample(s) not found: {missing_list}")
 
     # Sort by pitch, velocity, round-robin position
     zone_data.sort(key=lambda z: (z["pitch"], z["minvel"], z["rr_position"]))
@@ -1637,8 +1726,7 @@ def write_elmulti(
                 else:
                     print(f"  Converted: {new_filename}")
             else:
-                print(f"  [ERROR] Failed to convert: {zd['source_path']}")
-                sys.exit(1)
+                raise ConversionError(f"Failed to convert: {zd['source_path']}")
 
             # Calculate resample ratio
             if accurate_ratio and original_rate != output_rate:
@@ -1949,9 +2037,7 @@ def convert_to_elmulti(
     elif ext == ".sfz":
         zone_data, instrument_name = parse_sfz(input_path)
     else:
-        print(f"Error: Unsupported file format: {ext}")
-        print("Supported formats: .exs, .sfz")
-        sys.exit(1)
+        raise ValidationError(f"Unsupported file format: {ext}. Supported: .exs, .sfz")
 
     # Validate name length (with prefix)
     try:
@@ -1959,8 +2045,7 @@ def convert_to_elmulti(
         if name_warning:
             print(f"Warning: {name_warning}")
     except ValueError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        raise ValidationError(str(e))
 
     # Apply prefix and sanitize for directory name
     prefixed_name = f"{prefix}{instrument_name}" if prefix else instrument_name
@@ -2096,110 +2181,116 @@ def main():
 
     args = parser.parse_args()
 
-    # Check ffmpeg
-    ffmpeg_available, soxr_available = check_ffmpeg()
-    if not ffmpeg_available:
-        print("Error: ffmpeg is not installed or not found in PATH.")
-        print()
-        print("Please install ffmpeg:")
-        print("  macOS:   brew install ffmpeg")
-        print("  Ubuntu:  sudo apt install ffmpeg")
-        print("  Windows: Download from https://ffmpeg.org/download.html")
-        print("           Note: Use the 'full' build, not 'essentials'")
-        sys.exit(1)
+    try:
+        # Check ffmpeg
+        ffmpeg_available, soxr_available = check_ffmpeg()
+        if not ffmpeg_available:
+            raise FFmpegNotFoundError(
+                "ffmpeg is not installed or not found in PATH.\n\n"
+                "Please install ffmpeg:\n"
+                "  macOS:   brew install ffmpeg\n"
+                "  Ubuntu:  sudo apt install ffmpeg\n"
+                "  Windows: Download from https://ffmpeg.org/download.html\n"
+                "           Note: Use the 'full' build, not 'essentials'"
+            )
 
-    if not soxr_available:
-        print("Error: ffmpeg does not have soxr resampler support.")
-        print()
-        print("The soxr library is required for high-quality resampling.")
-        print()
-        print("On Windows:")
-        print("  Download the 'full' build instead of 'essentials' from:")
-        print("  https://ffmpeg.org/download.html")
-        print()
-        print("On macOS/Linux:")
-        print("  Reinstall ffmpeg with soxr support:")
-        print("  macOS:  brew install ffmpeg")
-        print("  Ubuntu: sudo apt install ffmpeg")
-        sys.exit(1)
+        if not soxr_available:
+            raise FFmpegNotFoundError(
+                "ffmpeg does not have soxr resampler support.\n\n"
+                "The soxr library is required for high-quality resampling.\n\n"
+                "On Windows:\n"
+                "  Download the 'full' build instead of 'essentials' from:\n"
+                "  https://ffmpeg.org/download.html\n\n"
+                "On macOS/Linux:\n"
+                "  Reinstall ffmpeg with soxr support:\n"
+                "  macOS:  brew install ffmpeg\n"
+                "  Ubuntu: sudo apt install ffmpeg"
+            )
 
-    # Collect input files (handle both shell-expanded and glob patterns)
-    input_files = []
-    for path in args.input_paths:
-        # Skip if output_dir accidentally got included as input
-        # (can happen with certain shell expansions or user error)
-        if path == args.output_dir:
-            continue
-        # Try glob expansion first
-        expanded = glob.glob(path)
-        if expanded:
-            input_files.extend(expanded)
-        elif os.path.isfile(path):
-            input_files.append(path)
-        else:
-            # Distinguish between glob pattern with no matches vs non-existent file
-            if any(c in path for c in "*?[]"):
-                print(f"Warning: No files matched pattern: {path}")
+        # Collect input files (handle both shell-expanded and glob patterns)
+        input_files = []
+        for path in args.input_paths:
+            # Skip if output_dir accidentally got included as input
+            # (can happen with certain shell expansions or user error)
+            if path == args.output_dir:
+                continue
+            # Try glob expansion first
+            expanded = glob.glob(path)
+            if expanded:
+                input_files.extend(expanded)
+            elif os.path.isfile(path):
+                input_files.append(path)
             else:
-                print(f"Warning: File not found: {path}")
+                # Distinguish between glob pattern with no matches vs non-existent file
+                if any(c in path for c in "*?[]"):
+                    print(f"Warning: No files matched pattern: {path}")
+                else:
+                    print(f"Warning: File not found: {path}")
 
-    if not input_files:
-        print("Error: No input files found")
+        if not input_files:
+            raise ValidationError("No input files found")
+
+        # Check output directory is not a file
+        if os.path.isfile(args.output_dir):
+            raise ValidationError(
+                f"OUTPUT_DIR is a file, not a directory: {args.output_dir}"
+            )
+
+        # Sort files for consistent ordering
+        input_files.sort()
+
+        # Determine single-cycle threshold (0 if disabled)
+        sc_threshold = 0 if args.no_single_cycle else args.single_cycle_threshold
+
+        # Determine resample rate (None if disabled)
+        resample_rate = None if args.no_resample else args.resample_rate
+
+        # Reset stats before conversion
+        conversion_stats.reset()
+
+        # Run conversion for each file
+        print(f"Found {len(input_files)} file(s) to convert\n")
+        for i, input_file in enumerate(input_files, 1):
+            if len(input_files) > 1:
+                print(f"{'=' * 60}")
+                print(f"[{i}/{len(input_files)}] {os.path.basename(input_file)}")
+                print(f"{'=' * 60}")
+
+            convert_to_elmulti(
+                input_file,
+                args.output_dir,
+                resample_rate,
+                args.round_loop,
+                args.use_accurate_ratio,
+                args.optimize_loop,
+                args.loop_search_range,
+                sc_threshold,
+                not args.no_embed_loop,
+                args.prefix,
+                args.normalize,
+            )
+            if len(input_files) > 1:
+                print()
+
+        # Print conversion summary
+        settings = {
+            "prefix": args.prefix,
+            "resample_rate": resample_rate,
+            "normalize_db": args.normalize,
+            "round_loop": args.round_loop,
+            "optimize_loops": args.optimize_loop,
+            "loop_search_range": args.loop_search_range,
+            "single_cycle_threshold": sc_threshold,
+            "embed_loop": not args.no_embed_loop,
+        }
+        conversion_stats.print_summary(settings)
+
+    except ValidationError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    # Check output directory is not a file
-    if os.path.isfile(args.output_dir):
-        print(f"Error: OUTPUT_DIR is a file, not a directory: {args.output_dir}")
+    except ConversionError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    # Sort files for consistent ordering
-    input_files.sort()
-
-    # Determine single-cycle threshold (0 if disabled)
-    sc_threshold = 0 if args.no_single_cycle else args.single_cycle_threshold
-
-    # Determine resample rate (None if disabled)
-    resample_rate = None if args.no_resample else args.resample_rate
-
-    # Reset stats before conversion
-    conversion_stats.reset()
-
-    # Run conversion for each file
-    print(f"Found {len(input_files)} file(s) to convert\n")
-    for i, input_file in enumerate(input_files, 1):
-        if len(input_files) > 1:
-            print(f"{'=' * 60}")
-            print(f"[{i}/{len(input_files)}] {os.path.basename(input_file)}")
-            print(f"{'=' * 60}")
-
-        convert_to_elmulti(
-            input_file,
-            args.output_dir,
-            resample_rate,
-            args.round_loop,
-            args.use_accurate_ratio,
-            args.optimize_loop,
-            args.loop_search_range,
-            sc_threshold,
-            not args.no_embed_loop,
-            args.prefix,
-            args.normalize,
-        )
-        if len(input_files) > 1:
-            print()
-
-    # Print conversion summary
-    settings = {
-        "prefix": args.prefix,
-        "resample_rate": resample_rate,
-        "normalize_db": args.normalize,
-        "round_loop": args.round_loop,
-        "optimize_loops": args.optimize_loop,
-        "loop_search_range": args.loop_search_range,
-        "single_cycle_threshold": sc_threshold,
-        "embed_loop": not args.no_embed_loop,
-    }
-    conversion_stats.print_summary(settings)
 
 
 if __name__ == "__main__":
