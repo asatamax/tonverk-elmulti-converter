@@ -11,8 +11,9 @@ from elmconv import (
     ConversionError,
     ConversionStats,
     ValidationError,
-    check_ffmpeg_for_gui,
+    check_ffmpeg,
     convert_to_elmulti,
+    get_ffmpeg_error_message,
 )
 
 
@@ -47,8 +48,9 @@ class ConverterBridge:
         Returns:
             tuple: (is_available, error_message)
         """
-        available, soxr, error = check_ffmpeg_for_gui()
-        if not available or not soxr:
+        ffmpeg_ok, soxr_ok = check_ffmpeg()
+        error = get_ffmpeg_error_message(ffmpeg_ok, soxr_ok)
+        if error:
             return False, error
         return True, ""
 

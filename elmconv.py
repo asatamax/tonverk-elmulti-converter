@@ -321,18 +321,18 @@ def get_ffprobe_cmd() -> str:
 # =============================================================================
 
 
-def check_ffmpeg_for_gui() -> tuple[bool, bool, str]:
-    """Check ffmpeg availability with detailed error message for GUI.
+def get_ffmpeg_error_message(ffmpeg_available: bool, soxr_available: bool) -> str:
+    """Get user-friendly error message for ffmpeg issues.
+
+    Args:
+        ffmpeg_available: Whether ffmpeg binary was found
+        soxr_available: Whether soxr resampler is supported
 
     Returns:
-        tuple: (ffmpeg_available, soxr_available, error_message)
+        str: Error message, or empty string if no error
     """
-    ffmpeg_available, soxr_available = check_ffmpeg()
-
     if not ffmpeg_available:
         return (
-            False,
-            False,
             "ffmpeg is not installed.\n\n"
             "Please install ffmpeg:\n\n"
             "macOS:\n"
@@ -343,12 +343,10 @@ def check_ffmpeg_for_gui() -> tuple[bool, bool, str]:
             "  2. Extract and add bin/ folder to PATH\n\n"
             "Linux:\n"
             "  sudo apt install ffmpeg  (Ubuntu/Debian)\n"
-            "  sudo dnf install ffmpeg  (Fedora)",
+            "  sudo dnf install ffmpeg  (Fedora)"
         )
     if not soxr_available:
         return (
-            True,
-            False,
             "ffmpeg is missing soxr resampler support.\n\n"
             "The 'soxr' library is required for high-quality resampling.\n\n"
             "macOS:\n"
@@ -357,9 +355,9 @@ def check_ffmpeg_for_gui() -> tuple[bool, bool, str]:
             "  Download the 'full' build (not 'essentials') from:\n"
             "  https://ffmpeg.org/download.html\n\n"
             "Linux:\n"
-            "  sudo apt install ffmpeg  (should include soxr)",
+            "  sudo apt install ffmpeg  (should include soxr)"
         )
-    return True, True, ""
+    return ""
 
 
 def check_ffmpeg():
@@ -2284,28 +2282,9 @@ def main():
     try:
         # Check ffmpeg
         ffmpeg_available, soxr_available = check_ffmpeg()
-        if not ffmpeg_available:
-            raise FFmpegNotFoundError(
-                "ffmpeg is not installed or not found in PATH.\n\n"
-                "Please install ffmpeg:\n"
-                "  macOS:   brew install ffmpeg\n"
-                "  Ubuntu:  sudo apt install ffmpeg\n"
-                "  Windows: Download from https://ffmpeg.org/download.html\n"
-                "           Note: Use the 'full' build, not 'essentials'"
-            )
-
-        if not soxr_available:
-            raise FFmpegNotFoundError(
-                "ffmpeg does not have soxr resampler support.\n\n"
-                "The soxr library is required for high-quality resampling.\n\n"
-                "On Windows:\n"
-                "  Download the 'full' build instead of 'essentials' from:\n"
-                "  https://ffmpeg.org/download.html\n\n"
-                "On macOS/Linux:\n"
-                "  Reinstall ffmpeg with soxr support:\n"
-                "  macOS:  brew install ffmpeg\n"
-                "  Ubuntu: sudo apt install ffmpeg"
-            )
+        error_message = get_ffmpeg_error_message(ffmpeg_available, soxr_available)
+        if error_message:
+            raise FFmpegNotFoundError(error_message)
 
         # Collect input files (handle both shell-expanded and glob patterns)
         input_files = []
