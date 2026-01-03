@@ -7,22 +7,46 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            artifact-name: elmconv-gui-mac-arm64
-            app-name: "Tonverk Elmulti Converter"
-          - os: macos-15-large
-            artifact-name: elmconv-gui-mac-x64
-            app-name: "Tonverk Elmulti Converter"
-          - os: windows-latest
-            artifact-name: elmconv-gui-windows
-            app-name: "Tonverk Elmulti Converter"
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    runs-on: ${{ matrix.os }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Rosetta 2
+        run: softwareupdate --install-rosetta --agree-to-license || true
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install -r requirements-gui.txt
+
+      - name: Build universal macOS app
+        run: |
+          source .venv/bin/activate
+          flet build macos --project "Tonverk Elmulti Converter" --product "Tonverk Elmulti Converter"
+
+      - name: Create archive
+        run: |
+          cd build/macos
+          zip -r elmconv-gui-mac-universal.zip "Tonverk Elmulti Converter.app"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: elmconv-gui-mac-universal
+          path: build/macos/elmconv-gui-mac-universal.zip
+
+  build-windows:
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,38 +64,24 @@ jobs:
           uv venv
           uv pip install -r requirements-gui.txt pyinstaller
 
-      - name: Build with flet pack (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          source .venv/bin/activate
-          flet pack elmconv_gui.py --name "${{ matrix.app-name }}"
-
-      - name: Build with flet pack (Windows)
-        if: runner.os == 'Windows'
+      - name: Build with flet pack
         run: |
           .venv\Scripts\activate
-          flet pack elmconv_gui.py --name "${{ matrix.app-name }}"
+          flet pack elmconv_gui.py --name "Tonverk Elmulti Converter"
 
-      - name: Create archive (macOS)
-        if: runner.os == 'macOS'
+      - name: Create archive
         run: |
           cd dist
-          zip -r "${{ matrix.artifact-name }}.zip" "${{ matrix.app-name }}.app"
-
-      - name: Create archive (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd dist
-          Compress-Archive -Path "${{ matrix.app-name }}.exe" -DestinationPath "${{ matrix.artifact-name }}.zip"
+          Compress-Archive -Path "Tonverk Elmulti Converter.exe" -DestinationPath "elmconv-gui-windows.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact-name }}
-          path: dist/${{ matrix.artifact-name }}.zip
+          name: elmconv-gui-windows
+          path: dist/elmconv-gui-windows.zip
 
   release:
-    needs: build
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
