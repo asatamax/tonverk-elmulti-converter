@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-03
+
+### Added
+
+- **Flet-based GUI** for cross-platform graphical interface
+  - Output folder selection with empty folder warning
+  - Options: Resample 48kHz, Optimize loops, Normalize, Prefix
+  - File(s) or Folder input selection
+  - Conversion log with Copy and Copy Debug buttons
+  - Completion dialog with result summary
+- `README-GUI.md` with installation and usage instructions
+- GitHub Actions workflow for automated builds on release tags
+  - Builds for macOS (Apple Silicon, Intel) and Windows
+
+### Changed
+
+- Refactored `elmconv.py` for GUI compatibility
+  - Added exception classes: `ConversionError`, `ValidationError`, `FFmpegNotFoundError`
+  - Added `check_ffmpeg_for_gui()` for GUI-friendly error messages
+  - Improved ffmpeg error messages with OS-specific installation instructions
+
 ## [1.0.4] - 2025-12-23
 
 ### Changed
