@@ -242,15 +242,30 @@ def check_ffmpeg_for_gui() -> tuple[bool, bool, str]:
             False,
             False,
             "ffmpeg is not installed.\n\n"
-            "Install with:\n"
-            "  macOS: brew install ffmpeg\n"
-            "  Windows: Download from ffmpeg.org",
+            "Please install ffmpeg:\n\n"
+            "macOS:\n"
+            "  brew install ffmpeg\n\n"
+            "Windows:\n"
+            "  1. Download from https://ffmpeg.org/download.html\n"
+            "     (Choose 'Windows builds' -> 'full' build)\n"
+            "  2. Extract and add bin/ folder to PATH\n\n"
+            "Linux:\n"
+            "  sudo apt install ffmpeg  (Ubuntu/Debian)\n"
+            "  sudo dnf install ffmpeg  (Fedora)",
         )
     if not soxr_available:
         return (
             True,
             False,
-            "ffmpeg missing soxr resampler.\n\nReinstall ffmpeg with full features.",
+            "ffmpeg is missing soxr resampler support.\n\n"
+            "The 'soxr' library is required for high-quality resampling.\n\n"
+            "macOS:\n"
+            "  brew reinstall ffmpeg\n\n"
+            "Windows:\n"
+            "  Download the 'full' build (not 'essentials') from:\n"
+            "  https://ffmpeg.org/download.html\n\n"
+            "Linux:\n"
+            "  sudo apt install ffmpeg  (should include soxr)",
         )
     return True, True, ""
 
