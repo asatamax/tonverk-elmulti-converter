@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.1.1"
+__version__ = "1.1.3"
 
 import argparse
 import glob
@@ -71,6 +71,28 @@ def default_logger(message: str, level: str = "info") -> None:
 # =============================================================================
 
 NOTE_NAMES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+
+# Anchor note mapping for thinning (uppercase only, case-sensitive)
+ANCHOR_NOTE_MAP = {
+    "C": 0,
+    "C#": 1,
+    "DB": 1,
+    "D": 2,
+    "D#": 3,
+    "EB": 3,
+    "E": 4,
+    "F": 5,
+    "F#": 6,
+    "GB": 6,
+    "G": 7,
+    "G#": 8,
+    "AB": 8,
+    "A": 9,
+    "A#": 10,
+    "BB": 10,
+    "B": 11,
+    "H": 11,
+}
 
 # Name length limits (based on Tonverk Factory Library analysis: max observed = 21 chars)
 MAX_NAME_WARN = 24  # Warning threshold: may be truncated on Tonverk display
@@ -159,6 +181,14 @@ class ConversionStats:
         self.loops_normal = 0
         self.loops_optimized = 0
 
+        # Thinning stats
+        self.thin_applied = False
+        self.thin_factor = 0
+        self.thin_original_pitches = 0
+        self.thin_result_pitches = 0
+        self.thin_original_interval = 0
+        self.thin_result_interval = 0
+
         # Warnings: list of (filename, message)
         self.warnings = []
 
@@ -227,6 +257,24 @@ class ConversionStats:
             )
             print(f"    - Normal: {self.loops_normal}{optimized_info}")
         print(f"  Without loop: {self.loops_without_loop}")
+
+        # Thinning section
+        if self.thin_applied:
+            print("\nThinning:")
+            print(f"  Factor: {self.thin_factor} (keep 1 of every {self.thin_factor})")
+            reduction_pct = (
+                (1 - self.thin_result_pitches / self.thin_original_pitches) * 100
+                if self.thin_original_pitches > 0
+                else 0
+            )
+            print(
+                f"  Pitches: {self.thin_original_pitches} -> {self.thin_result_pitches} "
+                f"({100 - reduction_pct:.0f}% kept)"
+            )
+            print(
+                f"  Interval: {self.thin_original_interval} -> "
+                f"{self.thin_result_interval} semitones"
+            )
 
         # Warnings section
         if self.warnings:
@@ -484,17 +532,19 @@ def read_wav_samples(filepath):
     return []
 
 
-def embed_smpl_chunk(wav_path, loop_start, loop_end, midi_unity_note=60):
-    """Embed smpl chunk with loop information into WAV file.
+def embed_smpl_chunk(wav_path, loop_start=None, loop_end=None, midi_unity_note=60):
+    """Embed smpl chunk with loop and/or root note information into WAV file.
 
     Args:
         wav_path: Path to WAV file (will be modified in-place)
-        loop_start: Loop start point (sample index, inclusive)
-        loop_end: Loop end point (sample index, inclusive)
+        loop_start: Loop start point (sample index, inclusive), or None for no loop
+        loop_end: Loop end point (sample index, inclusive), or None for no loop
         midi_unity_note: MIDI root note number (default: 60 = C4)
 
     Returns:
         bool: True if successful, False otherwise
+
+    Note: If loop_start and loop_end are None, only the root note is embedded.
     """
     import tempfile
     import shutil
@@ -537,6 +587,8 @@ def embed_smpl_chunk(wav_path, loop_start, loop_end, midi_unity_note=60):
         # https://www.recordingblogs.com/wiki/sample-chunk-of-a-wave-file
         sample_period = int(1e9 / sample_rate)  # nanoseconds
 
+        has_loop = loop_start is not None and loop_end is not None
+
         smpl_data = struct.pack(
             "<IIIIIIIII",
             0,  # manufacturer
@@ -546,20 +598,21 @@ def embed_smpl_chunk(wav_path, loop_start, loop_end, midi_unity_note=60):
             0,  # midi_pitch_fraction
             0,  # smpte_format
             0,  # smpte_offset
-            1,  # num_sample_loops
+            1 if has_loop else 0,  # num_sample_loops
             0,  # sampler_data
         )
 
-        # Add loop information
-        smpl_data += struct.pack(
-            "<IIIIII",
-            0,  # cue_point_id
-            0,  # loop_type (0 = forward loop)
-            loop_start,
-            loop_end,
-            0,  # fraction
-            0,  # play_count (0 = infinite)
-        )
+        # Add loop information if provided
+        if has_loop:
+            smpl_data += struct.pack(
+                "<IIIIII",
+                0,  # cue_point_id
+                0,  # loop_type (0 = forward loop)
+                loop_start,
+                loop_end,
+                0,  # fraction
+                0,  # play_count (0 = infinite)
+            )
 
         # Write to temporary file first, then replace
         with tempfile.NamedTemporaryFile(mode="wb", suffix=".wav", delete=False) as tmp:
@@ -835,6 +888,37 @@ def validate_name_length(name, prefix=""):
         )
 
     return True, None
+
+
+def parse_anchor_note(note_str):
+    """Parse anchor note value for thinning (0-11 or note name).
+
+    Args:
+        note_str: Note as number (0-11) or name (C, C#, Db, etc.)
+
+    Returns:
+        int: Note value 0-11, or None if invalid
+
+    Note names are case-sensitive (uppercase only):
+    C, C#, Db, D, D#, Eb, E, F, F#, Gb, G, G#, Ab, A, A#, Bb, B, H
+    """
+    note_str = str(note_str).strip()
+
+    # Try as integer first
+    try:
+        val = int(note_str)
+        if 0 <= val <= 11:
+            return val
+        return None
+    except ValueError:
+        pass
+
+    # Try as note name (uppercase only)
+    upper = note_str.upper()
+    if upper in ANCHOR_NOTE_MAP:
+        return ANCHOR_NOTE_MAP[upper]
+
+    return None
 
 
 def get_peak_level(filepath):
@@ -1777,6 +1861,248 @@ def parse_sfz_note(note_str):
     return None
 
 
+# =============================================================================
+# Sample Thinning
+# =============================================================================
+
+
+def analyze_sample_map(zone_data):
+    """Analyze sample map for thinning preview and validation.
+
+    Args:
+        zone_data: List of zone data dictionaries
+
+    Returns:
+        dict: Analysis results with keys:
+            - unique_pitches: sorted list of unique MIDI pitches
+            - pitch_count: number of unique pitches
+            - zone_count: total number of zones
+            - interval: most common interval between adjacent pitches (mode)
+            - pitch_range: (min_pitch, max_pitch) tuple
+            - velocity_layers: number of velocity layers (estimated)
+            - has_round_robin: whether round-robin samples exist
+    """
+    if not zone_data:
+        return {
+            "unique_pitches": [],
+            "pitch_count": 0,
+            "zone_count": 0,
+            "interval": 0,
+            "pitch_range": (0, 0),
+            "velocity_layers": 0,
+            "has_round_robin": False,
+        }
+
+    unique_pitches = sorted(set(zd["pitch"] for zd in zone_data))
+    pitch_count = len(unique_pitches)
+
+    # Calculate most common interval (mode)
+    if pitch_count >= 2:
+        intervals = [
+            unique_pitches[i + 1] - unique_pitches[i] for i in range(pitch_count - 1)
+        ]
+        interval = max(set(intervals), key=intervals.count)
+    else:
+        interval = 0
+
+    # Estimate velocity layers (max layers at any pitch)
+    vel_layers_by_pitch = {}
+    for zd in zone_data:
+        pitch = zd["pitch"]
+        minvel = zd["minvel"]
+        if pitch not in vel_layers_by_pitch:
+            vel_layers_by_pitch[pitch] = set()
+        vel_layers_by_pitch[pitch].add(minvel)
+    velocity_layers = max(len(v) for v in vel_layers_by_pitch.values())
+
+    # Check for round-robin
+    has_round_robin = any(zd["rr_position"] >= 0 for zd in zone_data)
+
+    return {
+        "unique_pitches": unique_pitches,
+        "pitch_count": pitch_count,
+        "zone_count": len(zone_data),
+        "interval": interval,
+        "pitch_range": (min(unique_pitches), max(unique_pitches)),
+        "velocity_layers": velocity_layers,
+        "has_round_robin": has_round_robin,
+    }
+
+
+def apply_thinning(zone_data, thin_factor, anchor=0, max_interval=None):
+    """Apply thinning to zone data by keeping every Nth pitch.
+
+    Args:
+        zone_data: List of zone data dictionaries
+        thin_factor: Keep 1 of every N samples (N >= 2)
+        anchor: Base note for selection (0-11, default: 0 = C)
+        max_interval: Maximum allowed interval in result (optional)
+
+    Returns:
+        tuple: (thinned_zone_data, stats_dict)
+
+    Raises:
+        ValidationError: If thin_factor < 2 or max_interval constraint violated
+    """
+    if thin_factor < 2:
+        raise ValidationError("--thin value must be >= 2")
+
+    analysis = analyze_sample_map(zone_data)
+    unique_pitches = analysis["unique_pitches"]
+    original_interval = analysis["interval"]
+
+    if len(unique_pitches) < 2:
+        # Nothing to thin
+        return zone_data, {
+            "original_pitches": len(unique_pitches),
+            "result_pitches": len(unique_pitches),
+            "removed_pitches": 0,
+            "original_interval": original_interval,
+            "result_interval": original_interval,
+            "original_zones": len(zone_data),
+            "result_zones": len(zone_data),
+            "anchor": anchor,
+            "selected_pitches": unique_pitches,
+        }
+
+    # Calculate resulting interval
+    result_interval = original_interval * thin_factor
+
+    # Validate max_interval constraint (prevent over-thinning)
+    if max_interval is not None:
+        if result_interval > max_interval:
+            raise ValidationError(
+                f"Thinning would result in {result_interval}-semitone intervals, "
+                f"but --thin-max-interval limits to {max_interval} semitones.\n"
+                f"Suggestion: Use --thin {max_interval // original_interval} or lower."
+            )
+
+    # Find starting index based on anchor
+    # Look for the first pitch whose pitch class matches anchor
+    start_idx = 0
+    for i, pitch in enumerate(unique_pitches):
+        if pitch % 12 == anchor:
+            start_idx = i
+            break
+    else:
+        # No exact match, find closest pitch class to anchor
+        min_dist = 12
+        for i, pitch in enumerate(unique_pitches):
+            dist = min((pitch % 12 - anchor) % 12, (anchor - pitch % 12) % 12)
+            if dist < min_dist:
+                min_dist = dist
+                start_idx = i
+
+    # Select every Nth pitch bidirectionally from start_idx
+    selected_pitches = set()
+
+    # Forward selection
+    for i in range(start_idx, len(unique_pitches), thin_factor):
+        selected_pitches.add(unique_pitches[i])
+
+    # Backward selection
+    for i in range(start_idx - thin_factor, -1, -thin_factor):
+        selected_pitches.add(unique_pitches[i])
+
+    # Filter zone_data to keep only zones with selected pitches
+    thinned_data = [zd for zd in zone_data if zd["pitch"] in selected_pitches]
+
+    stats = {
+        "original_pitches": len(unique_pitches),
+        "result_pitches": len(selected_pitches),
+        "removed_pitches": len(unique_pitches) - len(selected_pitches),
+        "original_interval": original_interval,
+        "result_interval": result_interval,
+        "original_zones": len(zone_data),
+        "result_zones": len(thinned_data),
+        "anchor": anchor,
+        "selected_pitches": sorted(selected_pitches),
+    }
+
+    return thinned_data, stats
+
+
+def print_thin_preview(zone_data, thin_factor, anchor=0, max_interval=None):
+    """Print preview of thinning operation without converting.
+
+    Args:
+        zone_data: Original zone data list
+        thin_factor: Thinning factor (N)
+        anchor: Anchor note (0-11)
+        max_interval: Maximum interval constraint
+
+    Raises:
+        ValidationError: If thinning constraints are violated
+    """
+    print("\n" + "=" * 60)
+    print("THINNING PREVIEW")
+    print("=" * 60)
+
+    analysis = analyze_sample_map(zone_data)
+
+    print("\nInput Analysis:")
+    print(f"  Total zones: {analysis['zone_count']}")
+    print(f"  Unique pitches: {analysis['pitch_count']}")
+    print(f"  Current interval: {analysis['interval']} semitones")
+    if analysis["pitch_count"] > 0:
+        min_p, max_p = analysis["pitch_range"]
+        print(
+            f"  Pitch range: {midi_to_note_name(min_p).upper()} - "
+            f"{midi_to_note_name(max_p).upper()} (MIDI {min_p}-{max_p})"
+        )
+    print(f"  Velocity layers: {analysis['velocity_layers']}")
+    if analysis["has_round_robin"]:
+        print("  Round-robin: Yes")
+
+    print("\nThinning Settings:")
+    print(f"  Factor: {thin_factor} (keep 1 of every {thin_factor})")
+    anchor_name = NOTE_NAMES[anchor].upper()
+    print(f"  Anchor: {anchor} ({anchor_name})")
+    if max_interval is not None:
+        print(f"  Max interval: {max_interval} semitones")
+
+    # Apply thinning to get stats (may raise ValidationError)
+    _, stats = apply_thinning(zone_data, thin_factor, anchor, max_interval)
+
+    reduction_pct = (
+        (1 - stats["result_pitches"] / stats["original_pitches"]) * 100
+        if stats["original_pitches"] > 0
+        else 0
+    )
+
+    print("\nResult:")
+    print(
+        f"  Remaining pitches: {stats['result_pitches']} "
+        f"({100 - reduction_pct:.0f}% of original)"
+    )
+    print(f"  Removed pitches: {stats['removed_pitches']}")
+    print(f"  Remaining zones: {stats['result_zones']}")
+    print(
+        f"  Result interval: {stats['result_interval']} semitones "
+        f"(was {stats['original_interval']})"
+    )
+
+    # Show selected pitches
+    print("\nPitches to keep:")
+    pitch_names = [
+        f"  {p:3d} ({midi_to_note_name(p).upper()})" for p in stats["selected_pitches"]
+    ]
+    # Show first 20 and last 5 if too many
+    if len(pitch_names) > 25:
+        for name in pitch_names[:20]:
+            print(name)
+        print(f"  ... ({len(pitch_names) - 25} more)")
+        for name in pitch_names[-5:]:
+            print(name)
+    else:
+        for name in pitch_names:
+            print(name)
+
+    print("\n" + "=" * 60)
+    print("Preview complete. Run without --thin-preview to convert.")
+    print("=" * 60)
+
+
 def write_elmulti(
     zone_data,
     output_dir,
@@ -2116,6 +2442,15 @@ def write_elmulti(
                     f.write("loop-mode = 'Off'\n")
                     conversion_stats.loops_without_loop += 1
 
+                    # Embed smpl chunk with root note info (no loop)
+                    if embed_loop:
+                        wav_path = os.path.join(output_dir, zd["new_filename"])
+                        key_center = zd.get("key_center", pitch)
+                        if embed_smpl_chunk(wav_path, None, None, key_center):
+                            print(
+                                f"    Embedded smpl chunk (root note): {zd['new_filename']}"
+                            )
+
     # Increment files processed count
     conversion_stats.files_processed += 1
 
@@ -2148,6 +2483,9 @@ def convert_to_elmulti(
     embed_loop=True,
     prefix="",
     normalize_db=None,
+    thin_factor=None,
+    thin_anchor=0,
+    thin_max_interval=None,
 ):
     """Convert input file to elmulti format.
 
@@ -2163,6 +2501,9 @@ def convert_to_elmulti(
         embed_loop: Embed loop info (smpl chunk) into WAV files (default: True)
         prefix: Prefix to add to instrument name and filenames (default: "")
         normalize_db: Target peak level for normalization in dB (None = disabled)
+        thin_factor: Thinning factor N (keep 1 of every N, None = disabled)
+        thin_anchor: Anchor note for thinning (0-11, default: 0 = C)
+        thin_max_interval: Maximum interval limit for thinning (optional)
     """
     ext = os.path.splitext(input_path)[1].lower()
 
@@ -2172,6 +2513,26 @@ def convert_to_elmulti(
         zone_data, instrument_name = parse_sfz(input_path)
     else:
         raise ValidationError(f"Unsupported file format: {ext}. Supported: .exs, .sfz")
+
+    # Apply thinning if requested
+    if thin_factor is not None:
+        zone_data, thin_stats = apply_thinning(
+            zone_data, thin_factor, thin_anchor, thin_max_interval
+        )
+        # Update global stats
+        conversion_stats.thin_applied = True
+        conversion_stats.thin_factor = thin_factor
+        conversion_stats.thin_original_pitches = thin_stats["original_pitches"]
+        conversion_stats.thin_result_pitches = thin_stats["result_pitches"]
+        conversion_stats.thin_original_interval = thin_stats["original_interval"]
+        conversion_stats.thin_result_interval = thin_stats["result_interval"]
+
+        print(
+            f"\nThinning applied: {thin_stats['original_pitches']} -> "
+            f"{thin_stats['result_pitches']} pitches "
+            f"(interval: {thin_stats['original_interval']} -> "
+            f"{thin_stats['result_interval']} semitones)"
+        )
 
     # Validate name length (with prefix)
     try:
@@ -2214,6 +2575,8 @@ def convert_to_elmulti(
         print(f"  - {stats['num_rr']} round-robin samples detected")
     if stats["resampled_count"] > 0:
         print(f"  - {stats['resampled_count']} samples resampled to {target_rate} Hz")
+
+    return conversion_stats
 
 
 # =============================================================================
@@ -2313,6 +2676,32 @@ def main():
         help="Peak normalize WAV files to specified dB level (default: 0dB if flag used)",
     )
 
+    # Thinning options
+    parser.add_argument(
+        "--thin",
+        "-T",
+        type=int,
+        metavar="N",
+        help="Keep 1 of every N samples (reduce to 1/N). Example: --thin 3 keeps C, D#, F#, A",
+    )
+    parser.add_argument(
+        "--thin-preview",
+        action="store_true",
+        help="Show what --thin would do without converting",
+    )
+    parser.add_argument(
+        "--thin-max-interval",
+        type=int,
+        metavar="N",
+        help="Limit maximum interval to N semitones (prevent over-thinning)",
+    )
+    parser.add_argument(
+        "--thin-anchor",
+        type=str,
+        metavar="NOTE",
+        help="Base note for thinning selection (0-11 or C, C#, Db, D, etc.)",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -2360,6 +2749,41 @@ def main():
         # Determine resample rate (None if disabled)
         resample_rate = None if args.no_resample else args.resample_rate
 
+        # Validate and parse thinning options
+        thin_anchor = 0
+        if args.thin_preview and not args.thin:
+            raise ValidationError("--thin-preview requires --thin to be specified")
+        if args.thin_max_interval is not None and not args.thin:
+            raise ValidationError("--thin-max-interval requires --thin to be specified")
+        if args.thin_anchor is not None:
+            if not args.thin:
+                raise ValidationError("--thin-anchor requires --thin to be specified")
+            thin_anchor = parse_anchor_note(args.thin_anchor)
+            if thin_anchor is None:
+                raise ValidationError(
+                    f"Invalid anchor note: {args.thin_anchor}. "
+                    "Use 0-11 or note names: C, C#, Db, D, D#, Eb, E, F, F#, Gb, G, G#, Ab, A, A#, Bb, B, H"
+                )
+        if args.thin is not None and args.thin < 2:
+            raise ValidationError("--thin value must be >= 2")
+
+        # Handle --thin-preview mode
+        if args.thin_preview:
+            for input_file in input_files:
+                ext = os.path.splitext(input_file)[1].lower()
+                if ext == ".exs":
+                    zone_data, _ = parse_exs(input_file)
+                elif ext == ".sfz":
+                    zone_data, _ = parse_sfz(input_file)
+                else:
+                    raise ValidationError(
+                        f"Unsupported file format: {ext}. Supported: .exs, .sfz"
+                    )
+                print_thin_preview(
+                    zone_data, args.thin, thin_anchor, args.thin_max_interval
+                )
+            return  # Exit without conversion
+
         # Reset stats before conversion
         conversion_stats.reset()
 
@@ -2383,6 +2807,9 @@ def main():
                 not args.no_embed_loop,
                 args.prefix,
                 args.normalize,
+                args.thin,
+                thin_anchor,
+                args.thin_max_interval,
             )
             if len(input_files) > 1:
                 print()

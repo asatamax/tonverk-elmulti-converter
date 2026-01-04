@@ -72,7 +72,7 @@ class ElmconvApp:
         )
 
         # Options panel
-        self.options_panel = OptionsPanel()
+        self.options_panel = OptionsPanel(page=self.page)
 
         # Input selector
         self.input_selector = InputSelector(
@@ -141,6 +141,8 @@ class ElmconvApp:
                 optimize=options.optimize,
                 normalize=options.normalize,
                 prefix=options.prefix,
+                thin_factor=options.thin_factor,
+                thin_max_interval=options.thin_max_interval,
             )
 
             self._gui_log(

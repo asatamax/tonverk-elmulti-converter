@@ -26,6 +26,32 @@ class Strings:
     PREFIX_LABEL = "Prefix"
     PREFIX_HINT = "Optional prefix for output names"
 
+    # Thinning options
+    SAMPLE_THINNING = "Thinning"
+    THIN_FACTOR_LABEL = "Factor"
+    THIN_MAX_INTERVAL_LABEL = "Max"
+
+    # Options help dialog
+    OPTIONS_HELP_TITLE = "Options Help"
+    OPTIONS_HELP_TEXT = (
+        "Resample to 48 kHz\n"
+        "  Convert sample rate to 48kHz for Elektron compatibility.\n\n"
+        "Optimize loop points\n"
+        "  Adjust loop points to nearest zero-crossing.\n\n"
+        "Normalize\n"
+        "  Normalize audio to 0dB peak.\n\n"
+        "Prefix\n"
+        "  Add prefix to output filenames.\n\n"
+        "Thin (Sample Thinning)\n"
+        "  Reduce sample count by keeping 1 of every N pitches.\n"
+        "  • N=2: C, D, E, F#, G#, A# (every 2 semitones)\n"
+        "  • N=3: C, D#, F#, A (every 3 semitones)\n"
+        "  • N=4: C, E, G# (every 4 semitones)\n\n"
+        "Max (Max interval)\n"
+        "  Limit the resulting interval (optional).\n"
+        "  Prevents over-thinning by setting a maximum semitone gap."
+    )
+
     # Input section
     SELECT_INPUT = "SELECT INPUT"
     SELECT_FILES = "Select File(s)"

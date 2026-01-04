@@ -4,7 +4,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.1.1-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.1.3-orange.svg)](CHANGELOG.md)
 
 マルチサンプルインストゥルメントを Elektron Tonverk 形式に変換します。
 
@@ -63,6 +63,10 @@ python3 elmconv.py INPUT_FILE [INPUT_FILE ...] OUTPUT_DIR [options]
 | `--no-resample` | 元のサンプルレートを維持（48kHz リサンプリングを無効化） |
 | `--use-accurate-ratio` | 実際のファイル長からリサンプル比を計算 |
 | `--prefix PREFIX` | インストゥルメント名とファイル名にプレフィックスを追加 |
+| `-T, --thin N` | N 個ごとに 1 サンプルを残す（1/N に削減） |
+| `--thin-preview` | --thin の結果を変換せずにプレビュー |
+| `--thin-max-interval N` | 最大インターバルを N 半音に制限（間引きすぎ防止） |
+| `--thin-anchor NOTE` | 間引きの基準ノート（0-11 または C, C#, Db など） |
 
 ### 使用例
 
@@ -90,6 +94,15 @@ python3 elmconv.py MyInstrument.exs output/ --no-resample
 
 # カスタムサンプルレート
 python3 elmconv.py MyInstrument.exs output/ -R 44100
+
+# サンプル間引き: 3 個ごとに 1 サンプル残す（クロマチック → C, D#, F#, A）
+python3 elmconv.py MyInstrument.exs output/ --thin 3
+
+# 間引きを変換せずにプレビュー
+python3 elmconv.py MyInstrument.exs output/ --thin 3 --thin-preview
+
+# 安全制限付き間引き（最大 6 半音インターバル）
+python3 elmconv.py MyInstrument.exs output/ --thin 3 --thin-max-interval 6
 ```
 
 ### 出力
@@ -106,8 +119,18 @@ python3 elmconv.py MyInstrument.exs output/ -R 44100
 - **ループポイント最適化** - リサンプリング後のループポイントを自動調整してシームレスなループを実現
 - **シングルサイクル波形検出** - 短いループ（シンセ波形）のピッチ精度を維持
 - **smpl チャンク埋め込み** - ループ情報とキーセンターを WAV ファイルに埋め込み（デフォルトで有効）
+- **サンプル間引き** - N 個ごとに 1 サンプルを保持してサンプル数を削減（例: クロマチック → 長3度間隔）
 - 高品質リサンプリング（SoX Resampler）
 - SFZ トランスポーズ対応（キーセンター調整）
+
+## サンプル間引き
+
+N 個ごとに 1 サンプルを保持してサンプル数を削減します。サンプルが多すぎる場合に便利です。
+
+- クロマチックに `--thin 3` → C, D#, F#, A（長3度間隔）
+- 1 sample/octave に `--thin 3` → 3オクターブごとに 1 サンプル
+- `--thin-anchor A` で A から選択開始
+- `--thin-max-interval 6` で間引きすぎを防止
 
 ## 対応フォーマット
 

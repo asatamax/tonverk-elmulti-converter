@@ -62,6 +62,8 @@ class ConverterBridge:
         optimize: bool = True,
         normalize: bool = False,
         prefix: str = "",
+        thin_factor: int | None = None,
+        thin_max_interval: int | None = None,
     ) -> tuple[int, int]:
         """Convert multiple files asynchronously.
 
@@ -72,6 +74,8 @@ class ConverterBridge:
             optimize: Enable loop optimization
             normalize: Enable normalization
             prefix: Output name prefix
+            thin_factor: Thinning factor N (keep 1 of every N, None = disabled)
+            thin_max_interval: Maximum interval limit for thinning (optional)
 
         Returns:
             tuple: (success_count, total_count)
@@ -80,9 +84,6 @@ class ConverterBridge:
         self.clear_debug_log()
         total = len(input_paths)
         success = 0
-
-        # Create shared stats instance
-        stats = ConversionStats()
 
         for i, path in enumerate(input_paths, 1):
             if self._cancel_requested:
@@ -94,7 +95,7 @@ class ConverterBridge:
 
             try:
                 # Run conversion in thread to avoid blocking UI
-                await asyncio.to_thread(
+                stats = await asyncio.to_thread(
                     self._convert_single,
                     path,
                     output_dir,
@@ -102,9 +103,19 @@ class ConverterBridge:
                     optimize,
                     normalize,
                     prefix,
-                    stats,
+                    thin_factor,
+                    thin_max_interval,
                 )
-                self.log("  -> Done", "success")
+
+                # Log result with thinning info if applied
+                if stats and stats.thin_applied:
+                    self.log(
+                        f"  -> Done (thinned: {stats.thin_original_pitches} "
+                        f"-> {stats.thin_result_pitches} pitches)",
+                        "success",
+                    )
+                else:
+                    self.log("  -> Done", "success")
                 success += 1
 
             except ConversionError as e:
@@ -124,28 +135,36 @@ class ConverterBridge:
         optimize: bool,
         normalize: bool,
         prefix: str,
-        stats: ConversionStats,
-    ):
+        thin_factor: int | None,
+        thin_max_interval: int | None,
+    ) -> ConversionStats | None:
         """Convert a single file (runs in thread).
 
         Captures stdout for debug log.
+
+        Returns:
+            ConversionStats from conversion, or None on error.
         """
         # Capture stdout for debug log
         stdout_capture = io.StringIO()
         with redirect_stdout(stdout_capture):
-            convert_to_elmulti(
+            stats = convert_to_elmulti(
                 input_path=input_path,
                 output_dir=output_dir,
                 target_rate=48000 if resample else None,
                 optimize_loops=optimize,
                 normalize_db=0.0 if normalize else None,
                 prefix=prefix,
+                thin_factor=thin_factor,
+                thin_max_interval=thin_max_interval,
             )
 
         # Store captured output
         captured = stdout_capture.getvalue()
         if captured:
             self._debug_log.append(captured)
+
+        return stats
 
     def cancel(self):
         """Request cancellation of ongoing conversion."""

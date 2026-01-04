@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-01-04
+
+### Added
+
+- **Sample thinning** - Reduce sample count by keeping every Nth pitch
+  - `--thin N` - Keep 1 of every N samples (reduce to 1/N)
+  - `--thin-preview` - Preview thinning results without converting
+  - `--thin-max-interval N` - Limit maximum interval to prevent over-thinning
+  - `--thin-anchor NOTE` - Base note for selection (0-11 or C, C#, Db, etc.)
+- **GUI**: Thinning options (Factor, Max Interval, Anchor Note)
+
+### Fixed
+
+- **smpl chunk embedding** - Now embeds root note info for ALL samples, not just looped ones
+  - Fixes pitch mapping issues on Tonverk for non-looped samples
+
 ## [1.1.1] - 2026-01-04
 
 ### Added

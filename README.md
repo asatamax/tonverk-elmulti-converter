@@ -4,7 +4,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.1.1-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.1.3-orange.svg)](CHANGELOG.md)
 
 Convert your multi-sample instruments to Elektron Tonverk.
 
@@ -63,6 +63,10 @@ python3 elmconv.py INPUT_FILE [INPUT_FILE ...] OUTPUT_DIR [options]
 | `--no-resample` | Keep original sample rate (disable 48kHz resampling) |
 | `--use-accurate-ratio` | Calculate resample ratio from actual file length |
 | `--prefix PREFIX` | Add prefix to instrument name and filenames |
+| `-T, --thin N` | Keep 1 of every N samples (reduce to 1/N) |
+| `--thin-preview` | Show what --thin would do without converting |
+| `--thin-max-interval N` | Limit maximum interval to N semitones (prevent over-thinning) |
+| `--thin-anchor NOTE` | Base note for thinning selection (0-11 or C, C#, Db, etc.) |
 
 ### Examples
 
@@ -90,6 +94,15 @@ python3 elmconv.py MyInstrument.exs output/ --no-resample
 
 # Custom sample rate
 python3 elmconv.py MyInstrument.exs output/ -R 44100
+
+# Thin samples: keep 1 of every 3 (chromatic → C, D#, F#, A)
+python3 elmconv.py MyInstrument.exs output/ --thin 3
+
+# Preview thinning without converting
+python3 elmconv.py MyInstrument.exs output/ --thin 3 --thin-preview
+
+# Thin with safety limit (max 6 semitone interval)
+python3 elmconv.py MyInstrument.exs output/ --thin 3 --thin-max-interval 6
 ```
 
 ### Output
@@ -106,8 +119,18 @@ The converter creates a subdirectory for each instrument containing:
 - **Loop point optimization** - Automatically adjusts loop points after resampling for seamless loops
 - **Single-cycle waveform detection** - Preserves pitch accuracy for short loops (synth waveforms)
 - **smpl chunk embedding** - Embeds loop info and key-center into WAV files (enabled by default)
+- **Sample thinning** - Reduce sample count by keeping every Nth sample (e.g., chromatic → major 3rd intervals)
 - High-quality resampling (SoX Resampler)
 - SFZ transpose support (key-center adjustment)
+
+## Sample Thinning
+
+Reduce sample count by keeping every Nth pitch. Useful when you have more samples than needed.
+
+- `--thin 3` on chromatic → C, D#, F#, A (major 3rd intervals)
+- `--thin 3` on 1 sample/octave → 1 sample per 3 octaves
+- Use `--thin-anchor A` to start selection from A
+- Use `--thin-max-interval 6` to prevent over-thinning
 
 ## Supported Formats
 
