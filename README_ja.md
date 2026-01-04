@@ -4,7 +4,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.1.3-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.1.4-orange.svg)](CHANGELOG.md)
 
 マルチサンプルインストゥルメントを Elektron Tonverk 形式に変換します。
 

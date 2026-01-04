@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-01-04
+
+### Fixed
+
+- **Windows**: Hide console windows during ffmpeg/ffprobe execution
+  - Previously, each subprocess call opened a visible DOS window
+  - Now uses `CREATE_NO_WINDOW` flag on Windows for silent operation
+
 ## [1.1.3] - 2026-01-04
 
 ### Added

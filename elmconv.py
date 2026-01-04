@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 
 import argparse
 import glob
@@ -364,6 +364,20 @@ def get_ffprobe_cmd() -> str:
     return "ffprobe"
 
 
+def get_subprocess_kwargs() -> dict:
+    """Get platform-specific subprocess kwargs.
+
+    On Windows, this returns flags to hide the console window that would
+    otherwise appear for each subprocess call (ffmpeg/ffprobe).
+
+    Returns:
+        dict: Keyword arguments to pass to subprocess.run()
+    """
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 # =============================================================================
 # Utility Functions
 # =============================================================================
@@ -417,7 +431,10 @@ def check_ffmpeg():
     try:
         ffmpeg_cmd = get_ffmpeg_cmd()
         result = subprocess.run(
-            [ffmpeg_cmd, "-version"], capture_output=True, text=True
+            [ffmpeg_cmd, "-version"],
+            capture_output=True,
+            text=True,
+            **get_subprocess_kwargs(),
         )
         if result.returncode != 0:
             return (False, False)
@@ -450,6 +467,7 @@ def get_sample_rate(filepath):
             ],
             capture_output=True,
             text=True,
+            **get_subprocess_kwargs(),
         )
         if result.returncode == 0:
             return int(result.stdout.strip())
@@ -481,6 +499,7 @@ def get_sample_count(filepath):
             ],
             capture_output=True,
             text=True,
+            **get_subprocess_kwargs(),
         )
         if result.returncode == 0 and result.stdout.strip():
             return int(result.stdout.strip())
@@ -937,6 +956,7 @@ def get_peak_level(filepath):
             [ffmpeg_cmd, "-i", filepath, "-af", "volumedetect", "-f", "null", "-"],
             capture_output=True,
             text=True,
+            **get_subprocess_kwargs(),
         )
         # Parse: max_volume: -3.5 dB
         match = re.search(r"max_volume:\s*([-\d.]+)\s*dB", result.stderr)
@@ -983,6 +1003,7 @@ def normalize_audio(filepath, target_db=0.0):
                 temp_path,
             ],
             capture_output=True,
+            **get_subprocess_kwargs(),
         )
 
         if result.returncode == 0:
@@ -1061,7 +1082,9 @@ def convert_to_wav(source_path, dest_path, target_rate=None):
     cmd.append(dest_path)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, **get_subprocess_kwargs()
+        )
         return (result.returncode == 0, original_rate, output_rate)
     except FileNotFoundError:
         raise FFmpegNotFoundError("ffmpeg not found. Please install ffmpeg.")
