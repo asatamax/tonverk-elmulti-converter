@@ -21,7 +21,6 @@ import sys
 from collections import defaultdict
 from typing import Protocol
 
-
 # =============================================================================
 # Exception Classes
 # =============================================================================
@@ -565,8 +564,8 @@ def embed_smpl_chunk(wav_path, loop_start=None, loop_end=None, midi_unity_note=6
 
     Note: If loop_start and loop_end are None, only the root note is embedded.
     """
-    import tempfile
     import shutil
+    import tempfile
 
     try:
         # Read original WAV file
@@ -2277,7 +2276,7 @@ def write_elmulti(
                 written_pitches.add(pitch)
 
             # Velocity layer
-            velocity = minvel / 127.0 if minvel > 0 else 0.49411765
+            velocity = minvel / 127.0
             f.write("\n[[key-zones.velocity-layers]]\n")
             f.write(f"velocity = {velocity}\n")
             f.write("strategy = 'Forward'\n")
