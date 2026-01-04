@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "elmconv"
+version = "1.2.0"
+description = "Convert EXS24/SFZ instruments to Elektron Tonverk (.elmulti) format"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "asatamax" }]
+keywords = ["elektron", "tonverk", "exs24", "sfz", "sampler", "converter"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio :: Conversion",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["flet[all]>=0.80.0,<1.0"]
+
+[project.scripts]
+elmconv = "elmconv:main"
+elmconv-gui = "elmconv_gui:run"
+
+[project.urls]
+Homepage = "https://github.com/asatamax/tonverk-elmulti-converter"
+Repository = "https://github.com/asatamax/tonverk-elmulti-converter"
+Issues = "https://github.com/asatamax/tonverk-elmulti-converter/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["elmconv.py", "elmconv_gui.py", "gui"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

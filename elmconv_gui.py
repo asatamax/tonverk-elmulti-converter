@@ -16,5 +16,10 @@ def main(page: ft.Page):
     ElmconvApp(page)
 
 
-if __name__ == "__main__":
+def run():
+    """Entry point for uv tool / pipx installation."""
     ft.run(main)
+
+
+if __name__ == "__main__":
+    run()

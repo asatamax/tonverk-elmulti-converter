@@ -2,9 +2,9 @@
 
 # elmconv
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.1.4-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.2.0-orange.svg)](CHANGELOG.md)
 
 マルチサンプルインストゥルメントを Elektron Tonverk 形式に変換します。
 
@@ -23,9 +23,54 @@
 python3 elmconv.py MyInstrument.exs output/
 ```
 
+## インストール
+
+### 方法 1: uv tool / pipx（推奨）
+
+依存関係を自動管理するコマンドラインツールとしてインストール：
+
+```bash
+# uv を使用（CLI のみ）
+uv tool install git+https://github.com/asatamax/tonverk-elmulti-converter
+
+# uv を使用（CLI + GUI）
+uv tool install 'elmconv[gui] @ git+https://github.com/asatamax/tonverk-elmulti-converter'
+
+# pipx を使用（CLI のみ）
+pipx install git+https://github.com/asatamax/tonverk-elmulti-converter
+
+# pipx を使用（CLI + GUI）
+pipx install 'elmconv[gui] @ git+https://github.com/asatamax/tonverk-elmulti-converter'
+```
+
+インストール後：
+```bash
+elmconv MyInstrument.exs output/      # CLI
+elmconv-gui                           # GUI（[gui] でインストールした場合）
+```
+
+アップグレード：
+```bash
+uv tool upgrade elmconv
+# または
+pipx upgrade elmconv
+```
+
+### 方法 2: GUI アプリをダウンロード
+
+[GitHub Releases](https://github.com/asatamax/tonverk-elmulti-converter/releases) からビルド済みバイナリをダウンロード - インストール不要！
+
+### 方法 3: ソースから実行
+
+```bash
+git clone https://github.com/asatamax/tonverk-elmulti-converter.git
+cd tonverk-elmulti-converter
+python3 elmconv.py MyInstrument.exs output/
+```
+
 ## 動作要件
 
-- Python 3.8 以上
+- Python 3.10 以上
 - ffmpeg
 
 ### ffmpeg のインストール

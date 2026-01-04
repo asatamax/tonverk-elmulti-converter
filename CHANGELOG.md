@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-05
+
+### Added
+
+- **Package installation support** - Install via `uv tool` or `pipx`
+  - `uv tool install git+https://github.com/asatamax/tonverk-elmulti-converter` (CLI only)
+  - `uv tool install 'elmconv[gui] @ git+...'` (CLI + GUI)
+  - Provides `elmconv` and `elmconv-gui` commands after installation
+  - Easy upgrades with `uv tool upgrade elmconv`
+- **pyproject.toml** - Standard Python packaging configuration
+  - Optional `[gui]` extras for GUI dependencies
+
+### Fixed
+
+- **Velocity layer calculation** - Fixed incorrect velocity for zones with minvel=0
+  - Previously set to ~0.49 (vel 63) instead of 0.0
+  - This caused velocity layers to be misordered in elmulti output
+
 ## [1.1.4] - 2026-01-04
 
 ### Fixed

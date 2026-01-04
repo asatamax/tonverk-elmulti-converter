@@ -2,9 +2,9 @@
 
 # elmconv
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.1.4-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.2.0-orange.svg)](CHANGELOG.md)
 
 Convert your multi-sample instruments to Elektron Tonverk.
 
@@ -23,9 +23,54 @@ Output: `.elmulti` (Tonverk's native multi-sample format)
 python3 elmconv.py MyInstrument.exs output/
 ```
 
+## Installation
+
+### Option 1: uv tool / pipx (Recommended)
+
+Install as a command-line tool with automatic dependency management:
+
+```bash
+# Using uv (CLI only)
+uv tool install git+https://github.com/asatamax/tonverk-elmulti-converter
+
+# Using uv (CLI + GUI)
+uv tool install 'elmconv[gui] @ git+https://github.com/asatamax/tonverk-elmulti-converter'
+
+# Using pipx (CLI only)
+pipx install git+https://github.com/asatamax/tonverk-elmulti-converter
+
+# Using pipx (CLI + GUI)
+pipx install 'elmconv[gui] @ git+https://github.com/asatamax/tonverk-elmulti-converter'
+```
+
+After installation:
+```bash
+elmconv MyInstrument.exs output/      # CLI
+elmconv-gui                           # GUI (if installed with [gui])
+```
+
+To upgrade:
+```bash
+uv tool upgrade elmconv
+# or
+pipx upgrade elmconv
+```
+
+### Option 2: Download GUI App
+
+Download pre-built binaries from [GitHub Releases](https://github.com/asatamax/tonverk-elmulti-converter/releases) - no installation required!
+
+### Option 3: Run from Source
+
+```bash
+git clone https://github.com/asatamax/tonverk-elmulti-converter.git
+cd tonverk-elmulti-converter
+python3 elmconv.py MyInstrument.exs output/
+```
+
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - ffmpeg
 
 ### Install ffmpeg
